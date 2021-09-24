@@ -211,6 +211,16 @@
   </div>
 
   <div class="field">
+    <label for="doc_url">
+      Collab Doc URL
+    <%= if f.data.doc_url do %>
+      <a href="<%= f.data.doc_url %>" class="field-action" rel="external">(go to there)</a>
+    <% end %>
+    </label>
+    <%= text_input(f, :doc_url, placeholder: "https://hackmd.io/8675309/edit") %>
+  </div>
+
+  <div class="field">
     <%= label(f, :notes) %>
     <%= textarea(f, :notes, placeholder: "The more, the better. Markdown enabled.", rows: 5) %>
   </div>
@@ -265,10 +275,17 @@
     <%= file_input(f, :plusplus_file) %>
   </div>
 
-  <div class="inline field">
-    <div class="ui toggle checkbox">
-      <%= checkbox(f, :recorded_live, class: "hidden") %>
-      <label>Recorded Live</label>
+  <div class="two fields">
+    <div class="inline field">
+      <div class="ui toggle checkbox">
+        <%= checkbox(f, :recorded_live, class: "hidden") %>
+        <label>Recorded Live</label>
+      </div>
+    </div>
+
+    <div class="inline field <%= if !f.data.recorded_live, do: "hidden" %> <%= AdminHelpers.error_class(f, :youtube_id) %>">
+      <%= text_input(f, :youtube_id, placeholder: "dQw4w9WgXcQ") %>
+      <%= label(f, :youtube_id, "YouTube ID") %>
     </div>
   </div>
 

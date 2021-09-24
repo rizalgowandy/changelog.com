@@ -11,7 +11,6 @@ defmodule ChangelogWeb.Meta.Title do
     PodcastView,
     PostView,
     TopicView,
-    Helpers.SharedHelpers,
     SearchView
   }
 
@@ -160,11 +159,12 @@ defmodule ChangelogWeb.Meta.Title do
     "Recommended episodes of #{podcast.name}"
   end
 
-  defp get(%{view_module: PodcastView, podcast: podcast}) do
-    if Enum.any?(podcast.active_hosts) do
-      "#{podcast.name} Podcast with #{SharedHelpers.comma_separated_names(podcast.active_hosts)}"
-    else
-      podcast.name
+  defp get(%{view_module: PodcastView, podcast: %{name: name, slug: slug}}) do
+    case slug do
+      "backstage" -> "Changelog's #{name} Podcast"
+      "master" -> name
+      "podcast" -> "#{name} Podcast"
+      _else -> "The #{name} Podcast"
     end
   end
 

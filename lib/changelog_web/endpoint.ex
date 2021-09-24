@@ -50,10 +50,6 @@ defmodule ChangelogWeb.Endpoint do
 
   plug Plug.RequestId
 
-  plug Unplug,
-    if: {Unplug.Predicates.RequestPathNotIn, ["/metrics"]},
-    do: Plug.Logger
-
   if Changelog.PromEx.bearer_token() == "" do
     plug PromEx.Plug, prom_ex_module: Changelog.PromEx
   else
@@ -76,6 +72,13 @@ defmodule ChangelogWeb.Endpoint do
   plug Plug.MethodOverride
   plug Plug.Head
 
+  cookie_domain =
+    if Mix.env() == :prod do
+      ".changelog.com"
+    else
+      System.get_env("HOST", "localhost")
+    end
+
   plug Plug.Session,
     store: :cookie,
     key: "_changelog_key",
@@ -83,7 +86,7 @@ defmodule ChangelogWeb.Endpoint do
     max_age: 31_536_000,
     signing_salt: System.get_env("SIGNING_SALT") || "8bAOekZm",
     extra: "SameSite=Lax",
-    domain: ".changelog.com"
+    domain: cookie_domain
 
   plug ChangelogWeb.Router
 end

@@ -7,7 +7,8 @@ defmodule ChangelogWeb.VanityDomainsTest do
     vanity_domain: "https://jsparty.fm",
     slug: "jsparty",
     apple_url: "https://podcasts.apple.com/us/podcast/js-party/id1209616598",
-    name: "JS Party"
+    name: "JS Party",
+    riverside_url: "https://riverside.fm/studio/js-to-the-party"
   }
   @gotime %{
     vanity_domain: "https://gotime.fm",
@@ -116,6 +117,24 @@ defmodule ChangelogWeb.VanityDomainsTest do
     assert_vanity_redirect(conn, "/community")
   end
 
+  test "vanity redirect for studio URL" do
+    conn =
+      build_conn_with_host_and_path("jsparty.fm", "/studio")
+      |> assign_podcasts([@gotime, @jsparty])
+      |> Plug.VanityDomains.call([])
+
+    assert_vanity_redirect(conn, @jsparty.riverside_url)
+  end
+
+  test "vanity redirects for guest guide" do
+    conn =
+      build_conn_with_host_and_path("jsparty.fm", "/guest")
+      |> assign_podcasts([@gotime, @jsparty])
+      |> Plug.VanityDomains.call([])
+
+    assert_vanity_redirect(conn, "/guest/jsparty")
+  end
+
   test "vanity redirects for jsparty ff form" do
     conn =
       build_conn_with_host_and_path("jsparty.fm", "/ff")
@@ -125,12 +144,42 @@ defmodule ChangelogWeb.VanityDomainsTest do
     assert_vanity_redirect(conn, "https://changelog.typeform.com/to/wTCcQHGQ")
   end
 
-  test "it no-ops for default host" do
+  test "vanity redirects for gotime gs form" do
     conn =
-      build_conn_with_host_and_path(ChangelogWeb.Endpoint.host(), "/")
+      build_conn_with_host_and_path("gotime.fm", "/gs")
+      |> assign_podcasts([@gotime, @jsparty])
       |> Plug.VanityDomains.call([])
 
-    assert conn.status != 302
+    assert_vanity_redirect(conn, "https://changelog.typeform.com/to/QDP70iKO")
+  end
+
+  test "vanity redirects for merch" do
+    conn =
+      build_conn_with_host_and_path("gotime.fm", "/merch")
+      |> assign_podcasts([@gotime, @jsparty])
+      |> Plug.VanityDomains.call([])
+
+    assert_vanity_redirect(conn, "https://merch.changelog.com")
+  end
+
+  test "it does not vanity redirect for default host" do
+    conn =
+      build_conn_with_host_and_path(ChangelogWeb.Endpoint.host(), "/")
+      |> assign_podcasts([@gotime, @jsparty])
+      |> Plug.VanityDomains.call([])
+
+    vanity_redirect = conn |> get_resp_header("x-changelog-vanity-redirect")
+    assert vanity_redirect == ["false"]
+  end
+
+  test "it does not vanity redirect for default host subdomain" do
+    conn =
+      build_conn_with_host_and_path("21.#{ChangelogWeb.Endpoint.host()}", "/")
+      |> assign_podcasts([@gotime, @jsparty])
+      |> Plug.VanityDomains.call([])
+
+    vanity_redirect = conn |> get_resp_header("x-changelog-vanity-redirect")
+    assert vanity_redirect == ["false"]
   end
 
   test "it no-ops for other hosts" do
@@ -139,6 +188,6 @@ defmodule ChangelogWeb.VanityDomainsTest do
       |> build_conn("")
       |> Plug.VanityDomains.call([])
 
-    assert conn.status != 302
+    assert conn.status == nil
   end
 end

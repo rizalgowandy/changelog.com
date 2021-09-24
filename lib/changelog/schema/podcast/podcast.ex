@@ -31,6 +31,7 @@ defmodule Changelog.Podcast do
     field :twitter_handle, :string
     field :apple_url, :string
     field :spotify_url, :string
+    field :riverside_url, :string
     field :schedule_note, :string
     field :download_count, :float
     field :reach_count, :integer
@@ -66,8 +67,10 @@ defmodule Changelog.Podcast do
       name: "Changelog Master Feed",
       slug: "master",
       status: :published,
-      welcome: "The master feed is your one stop shop for all Changelog podcasts",
-      description: "The master feed of all Changelog podcasts",
+      welcome: "Your one-stop shop for all Changelog podcasts",
+      description: "Your one-stop shop for all Changelog podcasts.",
+      extended_description:
+        "Weekly shows about software development, developer culture, open source, building startups, artificial intelligence, shipping code to production, and the people involved. Yes, we focus on the people. Everything else is an implementation detail.",
       keywords: "changelog, open source, oss, software, development, developer, hacker",
       apple_url: "https://itunes.apple.com/us/podcast/changelog-master-feed/id1164554936",
       spotify_url: "https://open.spotify.com/show/0S1h5K7jm2YvOcM7y1ZMXY",
@@ -84,7 +87,7 @@ defmodule Changelog.Podcast do
     podcast
     |> cast(
       attrs,
-      ~w(name slug status vanity_domain schedule_note welcome description extended_description keywords twitter_handle apple_url spotify_url recorded_live partner position)a
+      ~w(name slug status vanity_domain schedule_note welcome description extended_description keywords twitter_handle apple_url spotify_url riverside_url recorded_live partner position)a
     )
     |> validate_required([:name, :slug, :status])
     |> validate_format(:vanity_domain, Regexp.http(), message: Regexp.http_message())

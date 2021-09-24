@@ -29,7 +29,7 @@ $(CURL):
 endif
 
 K9S_RELEASES := https://github.com/derailed/k9s/releases
-K9S_VERSION := 0.24.7
+K9S_VERSION := 0.24.15
 K9S_BIN_DIR := $(LOCAL_BIN)/k9s-$(K9S_VERSION)-$(platform)-x86_64
 K9S_URL := $(K9S_RELEASES)/download/v$(K9S_VERSION)/k9s_$(platform)_x86_64.tar.gz
 K9S := $(K9S_BIN_DIR)/k9s
@@ -62,10 +62,6 @@ ytt: $(YTT)
 releases-ytt:
 	$(OPEN) $(YTT_RELEASES)
 
-.PHONY: k9s
-k9s: | $(K9S) ## Interact with K8S via a terminal UI
-	$(K9S)
-
 JQ_RELEASES := https://github.com/stedolan/jq/releases
 JQ_VERSION := 1.6
 JQ_BIN := jq-$(JQ_VERSION)-$(platform)-x86_64
@@ -97,8 +93,12 @@ $(LPASS):
 	@sudo apt-get update && sudo apt-get install lastpass-cli
 endif
 
+# lastpass-cli requires this directory to exist for it to work properly
+env::
+	@mkdir -p $(XDG_CONFIG_HOME)/lpass
+
 HELM_RELEASES := https://github.com/helm/helm/releases
-HELM_VERSION := 3.5.4
+HELM_VERSION := 3.6.3
 HELM_BIN_DIR := helm-v$(HELM_VERSION)-$(platform)-amd64
 HELM_URL := https://get.helm.sh/$(HELM_BIN_DIR).tar.gz
 HELM := $(LOCAL_BIN)/$(HELM_BIN_DIR)/$(platform)-amd64/helm
@@ -136,20 +136,3 @@ envsubst: $(ENVSUBST)
 .PHONY: releases-envsubst
 releases-envsubst:
 	$(OPEN) $(ENVSUBST_RELEASES)
-
-K3SUP_RELEASES := https://github.com/alexellis/k3sup/releases
-K3SUP_VERSION := 0.10.2
-K3SUP_BIN := k3sup-$(K3SUP_VERSION)-$(platform)-amd64
-K3SUP_URL := $(K3SUP_RELEASES)/download/$(K3SUP_VERSION)/k3sup-$(platform)
-K3SUP := $(LOCAL_BIN)/$(K3SUP_BIN)
-$(K3SUP): | $(CURL) $(LOCAL_BIN)
-	$(CURL) --progress-bar --fail --location --output $(K3SUP) "$(K3SUP_URL)"
-	touch $(K3SUP)
-	chmod +x $(K3SUP)
-	$(K3SUP) version | grep $(K3SUP_VERSION)
-	ln -sf $(K3SUP) $(LOCAL_BIN)/k3sup
-.PHONY: k3sup
-k3sup: $(K3SUP)
-.PHONY: releases-k3sup
-releases-k3sup:
-	$(OPEN) $(K3SUP_RELEASES)

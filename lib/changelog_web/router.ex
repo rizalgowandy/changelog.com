@@ -10,6 +10,7 @@ defmodule ChangelogWeb.Router do
 
   # should be used before :browser pipeline to avoid auth and cache headers
   pipeline :public do
+    plug Plug.Robots
     plug Plug.LoadPodcasts
     plug Plug.Redirects
     plug Plug.VanityDomains
@@ -21,6 +22,7 @@ defmodule ChangelogWeb.Router do
 
   pipeline :browser do
     plug :accepts, ["html", "js"]
+    plug Plug.FlocOff
     plug :fetch_session
     plug Plug.Turbolinks
     plug :fetch_flash
@@ -272,24 +274,5 @@ defmodule ChangelogWeb.Router do
     end
 
     get "/:slug", PodcastController, :show, as: :podcast
-  end
-
-  defp handle_errors(_conn, %{reason: %Ecto.NoResultsError{}}), do: true
-  defp handle_errors(_conn, %{reason: %Phoenix.Router.NoRouteError{}}), do: true
-  defp handle_errors(_conn, %{reason: %Phoenix.NotAcceptableError{}}), do: true
-
-  defp handle_errors(conn, %{kind: kind, reason: reason, stack: stacktrace}) do
-    headers = Enum.into(conn.req_headers, %{})
-    reason = Map.delete(reason, :assigns)
-
-    Rollbax.report(kind, reason, stacktrace, %{}, %{
-      "request" => %{
-        "url" => "#{conn.scheme}://#{conn.host}#{conn.request_path}",
-        "user_ip" => Map.get(headers, "x-forwarded-for"),
-        "method" => conn.method,
-        "headers" => headers,
-        "params" => conn.params
-      }
-    })
   end
 end

@@ -2,11 +2,11 @@
 <% {main_participants, additional_participants} = @episode |> Episode.participants() |> Enum.split(5) %>
 <%= for person <- main_participants do %>
   <%= link(to: PersonView.profile_path(person), title: person.name) do %>
-    <%= SharedHelpers.maybe_lazy_image(@conn, PersonView.avatar_url(person), "Featuring #{person.name}") %>
+    <%= SharedHelpers.maybe_lazy_image(@conn, PersonView.avatar_url(person), "Featuring #{person.name}", width: 24, height: 24) %>
   <% end %>
 <% end %>
 <%= if Enum.any?(additional_participants) do %>
-  <span class="has-tooltip"><%= SharedHelpers.maybe_lazy_image(@conn, Routes.static_url(@conn, "/images/icons/icon-plus.png"), "And more", style: "background: none;") %></span>
+  <span class="has-tooltip"><%= SharedHelpers.maybe_lazy_image(@conn, Routes.static_url(@conn, "/images/icons/icon-plus.png"), "And more", width: 24, height: 24, style: "background: none;") %></span>
   <div class="tooltip tooltip--topics">
     <div class="tooltip-arrow"></div>
     <div class="tooltip-wrap">

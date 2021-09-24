@@ -95,9 +95,7 @@ defmodule ChangelogWeb.EpisodeView do
 
   def embed_code(episode, podcast) do
     ~s{<audio data-theme="night" data-src="#{url(episode, :embed)}" src="#{audio_url(episode)}" preload="none" class="changelog-episode" controls></audio>} <>
-      ~s{<p><a href="#{url(episode, :show)}">#{podcast.name} #{numbered_title(episode)}</a> – Listen on <a href="#{
-        Routes.root_url(Endpoint, :index)
-      }">Changelog.com</a></p>} <>
+      ~s{<p><a href="#{url(episode, :show)}">#{podcast.name} #{numbered_title(episode)}</a> – Listen on <a href="#{Routes.root_url(Endpoint, :index)}">Changelog.com</a></p>} <>
       ~s{<script async src="//cdn.changelog.com/embed.js"></script>}
   end
 
@@ -206,7 +204,7 @@ defmodule ChangelogWeb.EpisodeView do
       duration: episode.audio_duration,
       art_url: PodcastView.cover_url(podcast, :small),
       audio_url: audio_url(episode),
-      share_url: url(episode, :show)
+      share_url: share_url(episode)
     }
 
     info =
@@ -237,7 +235,7 @@ defmodule ChangelogWeb.EpisodeView do
   end
 
   def render("share.json", %{podcast: _podcast, episode: episode}) do
-    url = url(episode, :show)
+    url = share_url(episode)
 
     %{
       url: url,
@@ -247,6 +245,17 @@ defmodule ChangelogWeb.EpisodeView do
       facebook: PublicHelpers.facebook_url(url),
       embed: embed_code(episode)
     }
+  end
+
+  def share_url(episode) do
+    episode = Episode.preload_podcast(episode)
+    vanity = episode.podcast.vanity_domain
+
+    if vanity do
+      vanity <> "/" <> episode.slug
+    else
+      url(episode, :show)
+    end
   end
 
   def url(episode, action) do

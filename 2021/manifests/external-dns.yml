@@ -22,11 +22,9 @@ spec:
       serviceAccountName: external-dns
       containers:
       - name: external-dns
-        image: k8s.gcr.io/external-dns/external-dns:v0.7.6
+        image: k8s.gcr.io/external-dns/external-dns:v0.8.0
         args:
         - --provider=dnsimple
-        - --source=service
-        - --source=ingress
         - --source=crd
         - --crd-source-apiversion=externaldns.k8s.io/v1alpha1
         - --crd-source-kind=DNSEndpoint
@@ -35,11 +33,11 @@ spec:
         - --events
         env:
         - name: EXTERNAL_DNS_TXT_OWNER_ID
-          value: lke-prod-20210331
+          value: linode-kubernetes-engine
         - name: EXTERNAL_DNS_LOG_LEVEL
           value: debug
         - name: EXTERNAL_DNS_POLICY
-          value: upsert-only
+          value: sync
         - name: DNSIMPLE_OAUTH
           valueFrom:
             secretKeyRef:
@@ -58,24 +56,6 @@ metadata:
   name: external-dns
   namespace: external-dns
 rules:
-- apiGroups:
-  - ""
-  resources:
-  - services
-  - endpoints
-  - pods
-  verbs:
-  - get
-  - watch
-  - list
-- apiGroups:
-  - extensions
-  resources:
-  - ingresses
-  verbs:
-  - get
-  - watch
-  - list
 - apiGroups:
   - ""
   resources:

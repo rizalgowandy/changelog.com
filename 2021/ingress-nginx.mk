@@ -8,10 +8,8 @@ $(INGRESS_NGINX_DIR):
 	  https://github.com/kubernetes/ingress-nginx.git $(INGRESS_NGINX_DIR)
 tmp/ingress-nginx: $(INGRESS_NGINX_DIR)
 
-INGRESS_NGINX_SERVICE = true
-ifneq ($(findstring k3s, $(KUBECONFIG)),)
-INGRESS_NGINX_SERVICE = false
-endif
+# Set to false if want the node public IP instead of a Node Balancer
+INGRESS_NGINX_SERVICE ?= true
 .PHONY: lke-ingress-nginx
 lke-ingress-nginx: | $(INGRESS_NGINX_DIR) lke-ctx $(HELM)
 	$(HELM) upgrade ingress-nginx $(INGRESS_NGINX_DIR)/charts/ingress-nginx \
@@ -25,7 +23,17 @@ lke-ingress-nginx: | $(INGRESS_NGINX_DIR) lke-ctx $(HELM)
 	  --set controller.publishService.enabled=$(INGRESS_NGINX_SERVICE) \
 	  --version $(INGRESS_NGINX_VERSION)
 	$(KUBECTL) $(K_CMD) --filename $(CURDIR)/manifests/ingress-nginx
-lke-bootstrap:: lke-ingress-nginx
+lke-bootstrap:: | lke-ingress-nginx
+
+ifeq (true,$(INGRESS_NGINX_SERVICE))
+define INGRESS_NGINX_SERVICE_EXTERNAL_IP
+$$($(KUBECTL) get service ingress-nginx-controller \
+	--namespace ingress-nginx \
+	--output=jsonpath='{.status.loadBalancer.ingress[0].ip}')
+endef
+else
+INGRESS_NGINX_SERVICE_EXTERNAL_IP = 127.0.0.1
+endif
 
 .PHONY: releases-ingress-nginx
 releases-ingress-nginx:

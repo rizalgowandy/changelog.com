@@ -19,11 +19,18 @@ lke-keel: | $(KEEL_DIR) lke-ctx $(HELM)
 	  --set service.enabled=true \
 	  --set service.type=ClusterIP \
 	  --set ingress.enabled=true \
-	  --set ingress.annotations."external\-dns\.alpha\.kubernetes\.io/ttl"=1m \
+	  --set ingress.annotations."external\-dns\.alpha\.kubernetes\.io/ttl"=10m \
 	  --set ingress.annotations."kubernetes\.io/ingress\.class"=nginx \
 	  --set ingress.hosts[0].host=keel21.changelog.com \
 	  --set ingress.hosts[0].paths[0]=/
-lke-bootstrap:: lke-keel
+	export PUBLIC_IPv4=$(INGRESS_NGINX_SERVICE_EXTERNAL_IP) \
+	; export NAMESPACE=keel \
+	; export DNS_TTL=$(DNS_TTL) \
+	; cat $(CURDIR)/manifests/keel.yml \
+	| $(ENVSUBST) -no-unset \
+	| $(KUBECTL) $(K_CMD) --filename -
+
+lke-bootstrap:: | lke-keel
 
 .PHONY: releases-keel
 releases-keel:

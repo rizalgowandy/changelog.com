@@ -9,6 +9,20 @@ data:
   # https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/#proxy-body-size
   proxy-body-size: "256m"
 
+  # be explicit about http2 (on by default)
+  use-http2: "true"
+
+  # increase tls session cache
+  # https://docs.nginx.com/nginx/admin-guide/security-controls/terminating-ssl-tcp/
+  ssl-session-cache-size: "20m"
+  ssl-session-timeout: "4h"
+
+  # compress static files
+  use-gzip: "true"
+  gzip-level: "5"
+  enable-brotli: "true"
+  brotli-level: "5"
+
   # http://nginx.org/en/docs/varindex.html
   log-format-upstream: >-
     {

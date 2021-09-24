@@ -3,25 +3,49 @@ LKE_CONFIGS := $(XDG_CONFIG_HOME)/.kube/configs
 LKE_NAME ?= prod
 
 # This has been already created & will be enabled on: eval "$(make env)"
-env::
-	@echo 'export LKE_LABEL=prod-20210331'
 
-LKE_LABEL ?= $(LKE_NAME)-$(shell date -u +'%Y%m%d')
-# us-east, the only US region with all the bells & whistles in 2021.03,
-# Linodes, NodeBalancers, Block Storage, Object Storage, GPU Linodes,
-# Kubernetes, has mixed networking that MAY be the root cause for the high
-# inter-node latency that we've been experiencing. Switching to us-central to
-# check if networking improves.
-LKE_REGION ?= us-central
+LKE_LABEL ?= $(LKE_NAME)-20210428
+export LKE_LABEL
+env::
+	@echo 'export LKE_LABEL=$(LKE_LABEL)'
+# us-east, the only US region with all the bells & whistles in 2021.03:
+# Linodes, NodeBalancers, Block Storage, Object Storage, GPU Linodes, Kubernetes
+LKE_REGION ?= us-east
 LKE_VERSION ?= 1.20
-LKE_NODE_TYPE ?= g6-dedicated-8
-LKE_NODE_COUNT ?= 3
+LKE_NODE_TYPE ?= g6-dedicated-32
+LKE_NODE_COUNT ?= 1
+
+### HOW LONG DOES IT TAKE FOR EVERYTHING TO RESTORE IF THE VM GETS DELETED?
+#
+# - 00:00 Linode deleted
+# - 03:00 Linode boots
+# - 05:30 LKE node ready
+# - 07:10 Uploads restore started
+# - 07:12 PostgreSQL db init from backup started
+# - 08:20 PostgreSQL db init from backup finished (1')
+# - 21:00 Uploads restore finished (13')
+# - 21:16 PostgreSQL db backup started
+# - 21:52 PostgreSQL db backup finished
+# - 22:58 Sentry notify release
+# - 22:58 Compiling
+# - 23:27 App booting
+# - 23:29 Migrations running - noop
+# - 23:54 First HTTP request serviced (24')
+
+### HOW LONG DOES IT TAKE FOR EVERYTHING TO RESTORE IF THE VM GETS REBOOTED?
+#
+# - 00:00 Linode reboot initiated
+# - 01:37 Linode boots
+# - 03:12 First HTTP request serviced (3')
 
 $(LKE_CONFIGS):
 	mkdir -p $(LKE_CONFIGS)
 
+LINODE_CLI_TOKEN ?= $(shell $(LPASS) show --notes Shared-changelog/secrets/LINODE_CLI_TOKEN)
+export LINODE_CLI_TOKEN
 env:: | $(LPASS)
-	@echo 'export LINODE_CLI_TOKEN="$(shell $(LPASS) show --notes Shared-changelog/secrets/LINODE_CLI_TOKEN)"'
+	@$(LPASS) status --quiet || $(LPASS) login
+	@echo 'export LINODE_CLI_TOKEN="$(LINODE_CLI_TOKEN)"'
 
 ifeq ($(PLATFORM),Darwin)
 # Use Python3 for all Python-based CLIs, such as linode-cli
@@ -152,8 +176,14 @@ lke-configs: | linode $(LKE_CONFIGS) $(JQ)
 	  && printf "$(BOLD)$(GREEN)OK!$(NORMAL)\n" \
 	  && printf "\nTo use a specific config with $(BOLD)kubectl$(NORMAL), run e.g. $(BOLD)export KUBECONFIG=$(NORMAL)\n"
 
+KUBECONFIG ?= $(LKE_CONFIGS)/$(LKE_LABEL).yml
+export KUBECONFIG
 env::
-	@echo 'export KUBECONFIG=$(LKE_CONFIGS)/$(LKE_LABEL).yml'
+	@echo 'export KUBECONFIG=$(KUBECONFIG)'
+
+.PHONY: k9s
+k9s: | $(K9S) lke-configs ## Interact with K8S via a terminal UI
+	$(K9S) --all-namespaces --headless
 
 IS_KUBECONFIG_LKE_CONFIG := $(findstring $(LKE_CONFIGS), $(KUBECONFIG))
 .PHONY: lke-config-hint
@@ -184,39 +214,9 @@ releases-kubectl:
 .PHONY: lke-ctx
 lke-ctx: | $(KUBECTL) lke-config-hint
 
+.PHONY: lke-debug
+lke-debug: | lke-ctx
+	$(KUBECTL) $(K_CMD) --filename $(CURDIR)/manifests/debug.yml
+
 .PHONY: lke-bootstrap
-lke-bootstrap:: | lke-ctx
-
-LKE_LABEL = 20210420-k3s
-K3S_CHANNEL ?= v1.20
-define K3S_HOST
-$$($(LINODE) linodes list --json \
-| $(JQ) --raw-output --compact-output '.[] | select(.label == "$(LKE_LABEL)") | .ipv4 | .[0]')
-endef
-K3S_SSH_USER ?= root
-K3S_SSH_PRIVATE_KEY ?= ~/.ssh/focker_20181030_ed25519
-env::
-	@echo 'export LKE_LABEL=$(LKE_LABEL)'
-
-.PHONY:
-k3s: | $(K3SUP) linode-k3s $(LKE_CONFIGS)
-	$(K3SUP) install \
-	  --host $(K3S_HOST) \
-	  --user $(K3S_SSH_USER) \
-	  --ssh-key $(K3S_SSH_PRIVATE_KEY) \
-	  --local-path $(KUBECONFIG) \
-	  --k3s-channel $(K3S_CHANNEL) \
-	  --disable traefik \
-	  --disable servicelb
-
-.PHONY: linode-k3s
-linode-k3s: | linode $(JQ)
-	$(LINODE) linodes list --json \
-		| $(JQ) '.[] | select(.label == "$(LKE_LABEL)")' \
-	|| $(LINODE) linodes create \
-		--type $(LKE_NODE_TYPE) \
-		--region $(LKE_REGION) \
-		--image linode/debian10 \
-		--root_pass $(shell pwgen 20 1) \
-		--authorized_users gerhard-changelog \
-		--label 20210420-k3s
+lke-bootstrap:: | lke-debug
