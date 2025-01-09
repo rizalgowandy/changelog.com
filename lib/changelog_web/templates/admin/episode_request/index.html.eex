@@ -1,15 +1,15 @@
 <div class="ui basic segment">
   <h1 class="ui dividing header">
-    <%= link("Podcasts", to: Routes.admin_podcast_path(@conn, :index)) %>
+    <%= link("Podcasts", to: ~p"/admin/podcasts") %>
     <%= render(PodcastView, "_dropdown_list.html", assigns) %>
-    <%= link(@podcast.name, to: Routes.admin_podcast_episode_path(@conn, :index, @podcast.slug)) %>
+    <%= link(@podcast.name, to: ~p"/admin/podcasts/#{@podcast.slug}/episodes") %>
     &raquo;
     Episode Requests
-    <%= link("(View)", to: Routes.podcast_path(@conn, :show, @podcast.slug), class: "view") %>
+    <%= link("(View)", to: ~p"/#{@podcast.slug}", class: "view") %>
   </h1>
 
   <div class="actions right">
-    <%= link to: Routes.admin_podcast_episode_path(@conn, :new, @podcast.slug), class: "ui right floated primary basic button" do %>
+    <%= link to: ~p"/admin/podcasts/#{@podcast.slug}/episodes/new", class: "ui right floated primary basic button" do %>
       <i class="icon unmute"></i>
       Add Episode
     <% end %>
@@ -18,26 +18,31 @@
 
 <div class="ui basic segment">
 <%= if Enum.any?(@fresh) do %>
-  <h2 class="ui header">Fresh</h2>
+  <h2 class="ui header">Fresh (<%= length(@fresh) %>)</h2>
   <%= render("_table.html", Map.merge(assigns, %{podcast: @podcast, requests: @fresh, status: :fresh})) %>
 <% end %>
 
 <%= if Enum.any?(@pending) do %>
-  <h2 class="ui header">Pending</h2>
+  <h2 class="ui header">Pending (<%= length(@pending) %>)</h2>
   <%= render("_table.html", Map.merge(assigns, %{podcast: @podcast, requests: @pending, status: :pending})) %>
 <% end %>
 
 <%= if Enum.any?(@accepted) do %>
-  <h2 class="ui header">Accepted</h2>
+  <h2 class="ui header">Accepted (<%= length(@accepted) %>)</h2>
   <%= render("_table.html", Map.merge(assigns, %{podcast: @podcast, requests: @accepted, status: :accepted})) %>
 <% end %>
 
+<%= if Enum.any?(@complete) do %>
+  <h2 class="ui header">Complete (<%= length(@complete) %>)</h2>
+  <%= render("_table.html", Map.merge(assigns, %{podcast: @podcast, requests: @complete, status: :complete})) %>
+<% end %>
+
 <%= if Enum.any?(@declined) do %>
-  <h2 class="ui header">Declined</h2>
+  <h2 class="ui header">Declined (<%= length(@declined) %>)</h2>
   <%= render("_table.html", Map.merge(assigns, %{podcast: @podcast, requests: @declined, status: :declined})) %>
 <% end %>
 
 <%= if Enum.any?(@failed) do %>
-  <h2 class="ui header">Failed</h2>
-  <%= render("_table.html", Map.merge(assigns, %{podcast: @podcast, requests: @declined, status: :failed})) %>
+  <h2 class="ui header">Failed (<%= length(@failed) %>)</h2>
+  <%= render("_table.html", Map.merge(assigns, %{podcast: @podcast, requests: @failed, status: :failed})) %>
 <% end %>

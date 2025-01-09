@@ -1,7 +1,7 @@
 defmodule ChangelogWeb.EmailView do
   use ChangelogWeb, :public_view
 
-  alias Changelog.{Faker, NewsItem}
+  alias Changelog.{Faker, HtmlKit, NewsItem, Podcast, UrlKit}
 
   alias ChangelogWeb.{
     AuthView,
@@ -9,8 +9,21 @@ defmodule ChangelogWeb.EmailView do
     EpisodeView,
     NewsItemView,
     NewsItemCommentView,
-    PersonView
+    PersonView,
+    PodcastView
   }
+
+  def feed_app_url(feed, app_prefix, strip_scheme \\ true) do
+    feed_url = url(~p"/feeds/#{feed.slug}")
+
+    if strip_scheme do
+      app_prefix <> UrlKit.sans_scheme(feed_url)
+    else
+      app_prefix <> feed_url
+    end
+  end
+
+  def greeting(nil), do: "Hey there,"
 
   def greeting(person) do
     label =
@@ -37,6 +50,16 @@ defmodule ChangelogWeb.EmailView do
 
   def news_item_url(item) do
     Routes.news_item_url(Endpoint, :show, NewsItem.slug(item))
+  end
+
+  def news_title(episode) do
+    title = "Changelog News ##{episode.slug}"
+
+    if episode.published_at do
+      "#{title} (#{TimeView.hacker_date(episode.published_at)})"
+    else
+      title
+    end
   end
 
   def comment_url(item, comment) do

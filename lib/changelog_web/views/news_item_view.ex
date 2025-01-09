@@ -20,15 +20,9 @@ defmodule ChangelogWeb.NewsItemView do
       [
         link("[#{item.click_count}/#{item.impression_count}]",
           to:
-            Routes.admin_news_item_path(conn, :edit, item, next: SharedHelpers.current_path(conn)),
-          data: [turbolinks: false]
-        ),
-        link(" [#{SharedHelpers.comma_separated(episode.reach_count)}]",
-          to:
             Routes.admin_podcast_episode_path(conn, :edit, episode.podcast.slug, episode.slug,
               next: SharedHelpers.current_path(conn)
-            ),
-          data: [turbolinks: false]
+            )
         )
       ]
     end
@@ -39,8 +33,7 @@ defmodule ChangelogWeb.NewsItemView do
     content_tag(:span, class: "news_item-toolbar-meta-item") do
       [
         link("[#{item.click_count}/#{item.impression_count}]",
-          to: Routes.admin_post_path(conn, :edit, post, next: SharedHelpers.current_path(conn)),
-          data: [turbolinks: false]
+          to: Routes.admin_post_path(conn, :edit, post, next: SharedHelpers.current_path(conn))
         )
       ]
     end
@@ -51,8 +44,7 @@ defmodule ChangelogWeb.NewsItemView do
       [
         link("[#{item.click_count}/#{item.impression_count}]",
           to:
-            Routes.admin_news_item_path(conn, :edit, item, next: SharedHelpers.current_path(conn)),
-          data: [turbolinks: false]
+            Routes.admin_news_item_path(conn, :edit, item, next: SharedHelpers.current_path(conn))
         )
       ]
     end
@@ -92,8 +84,8 @@ defmodule ChangelogWeb.NewsItemView do
   def image_link(item, version \\ :large) do
     if item.image do
       content_tag :div, class: "news_item-image" do
-        link to: item.url, data: [news: true] do
-          tag(:img, src: image_url(item, version), alt: item.headline)
+        link to: news_item_url(item), data: [news: true] do
+          tag(:img, src: image_url(item, version), alt: item.headline, loading: "lazy")
         end
       end
     end
@@ -103,15 +95,7 @@ defmodule ChangelogWeb.NewsItemView do
     Files.Image.mime_type(item.image)
   end
 
-  def image_path(item, version) do
-    {item.image, item}
-    |> Files.Image.url(version)
-    |> String.replace_leading("/priv", "")
-  end
-
-  def image_url(item, version) do
-    Routes.static_url(Endpoint, image_path(item, version))
-  end
+  def image_url(item, version), do: Files.Image.url({item.image, item}, version)
 
   def items_with_ads(items, []), do: items
 
@@ -182,10 +166,10 @@ defmodule ChangelogWeb.NewsItemView do
 
   def render_source_image(conn, item) do
     cond do
-      item.author ->
+      item.author && item.author.avatar ->
         render("source/_image_author.html", conn: conn, item: item, author: item.author)
 
-      item.source && item.source.icon ->
+      item.source && item.source.publication && item.source.icon ->
         render("source/_image_source.html", conn: conn, item: item, source: item.source)
 
       topic = Enum.find(item.topics, & &1.icon) ->
@@ -235,6 +219,10 @@ defmodule ChangelogWeb.NewsItemView do
   def render_youtube_embed(nil), do: nil
   def render_youtube_embed(id), do: render("_youtube_embed.html", id: id)
 
+  def share_path(conn, item) do
+    Routes.news_item_path(conn, :show, hashid(item))
+  end
+
   def teaser(item, max_words \\ 20) do
     item.story
     |> SharedHelpers.md_to_html()
@@ -256,6 +244,9 @@ defmodule ChangelogWeb.NewsItemView do
       title: "View #{topic.name}"
     )
   end
+
+  def news_item_url(%{url: url, source: %{slug: "medium"}}), do: UrlKit.via_scribe(url)
+  def news_item_url(%{url: url}), do: url
 
   def video_embed(item = %{type: :video}) do
     item.url |> UrlKit.get_youtube_id() |> render_youtube_embed()

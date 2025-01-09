@@ -1,26 +1,28 @@
 <div class="ui basic segment">
   <h1 class="ui dividing header">
-    <%= link("Podcasts", to: Routes.admin_podcast_path(@conn, :index)) %>
+    <%= link("Podcasts", to: ~p"/admin/podcasts") %>
     <%= render(PodcastView, "_dropdown_list.html", assigns) %>
-    <%= link @episode.podcast.name, to: Routes.admin_podcast_episode_path(@conn, :index, @episode.podcast.slug) %>
+    <%= link @episode.podcast.name, to: ~p"/admin/podcasts/#{@episode.podcast.slug}/episodes" %>
     &raquo;
-    <%= link @episode.slug, to: Routes.admin_podcast_episode_path(@conn, :edit, @podcast.slug, @episode.slug) %>
+    <%= link @episode.slug, to: ~p"/admin/podcasts/#{@podcast.slug}/episodes/#{@episode.slug}/edit" %>
 
     <div class="ui basic right floated buttons">
-      <%= if @episode.published do %>
-        <%= link("View Public",
-          to: Routes.episode_path(@conn, :show, @podcast.slug, @episode.slug),
-          rel: "external",
-          class: "ui button") %>
-      <% else %>
-        <%= link("Preview",
-          to: Routes.episode_path(@conn, :preview, @podcast.slug, @episode.slug),
-          rel: "external",
-          class: "ui button") %>
-      <% end %>
-      <%= if @item do %>
-        <%= link("News Item", to: Routes.admin_news_item_path(@conn, :edit, @item), class: "ui button") %>
-      <% end %>
+    <%= if @episode.published do %>
+      <input type="hidden" value="<%= Changelog.Buffer.Content.episode_text(@item) %>">
+      <button class="ui icon button clipboard" title="Copy Share Text"><i class="share icon"></i></button>
+      <%= link("View Public",
+        to: ~p"/#{@podcast.slug}/#{@episode.slug}",
+        rel: "external",
+        class: "ui button") %>
+    <% else %>
+      <%= link("Preview",
+        to: ~p"/#{@podcast.slug}/#{@episode.slug}/preview",
+        rel: "external",
+        class: "ui button") %>
+    <% end %>
+    <%= if @item do %>
+      <%= link("News Item", to: ~p"/admin/news/items/#{@item}/edit", class: "ui button") %>
+    <% end %>
     </div>
 
     <div class="sub header"><%= @episode.title %></div>
@@ -53,15 +55,22 @@
     <div class="ui four wide column">
       <div class="ui horizontal statistics">
         <div class="statistic">
-          <div class="value"><%= AdminHelpers.reach_count(@episode) %></div>
-          <div class="label">Reach</div>
-        </div>
-
-        <div class="statistic">
-          <div class="value"><%= AdminHelpers.download_count(@episode) %></div>
+          <div class="value"><%= SharedHelpers.pretty_downloads(@episode) %></div>
           <div class="label">Downloads</div>
         </div>
 
+        <div class="statistic">
+          <div class="value"><%= SharedHelpers.comma_separated(@episode.email_sends) %></div>
+          <div class="label">Emails Sent</div>
+        </div>
+        <div class="statistic">
+          <div class="value"><%= SharedHelpers.comma_separated(@episode.email_opens) %></div>
+          <div class="label">Emails Opened</div>
+        </div>
+        <div class="statistic">
+          <div class="value"><%= SharedHelpers.percent(@episode.email_opens, @episode.email_sends) %>%</div>
+          <div class="label">Open Rate</div>
+        </div>
         <div class="statistic">
           <div class="value"><%= length(@stats) %></div>
           <div class="label">Days Published</div>
@@ -74,190 +83,27 @@
     </div>
   </div>
 
-  <h2 class="ui header">Demographics</h2>
-
-  <div class="ui centered stackable grid">
-    <div class="ui four wide column">
-      <div class="ui segment">
-        <h3 class="ui centered header">
-          <div class="content">
-            <i class="world icon"></i>
-            Top Countries
-
-          </div>
-        </h3>
-
-        <% countries = @stats |> EpisodeStat.downloads_by_country() |> round_and_filter() %>
-        <% countries_downloads = countries |> Enum.map(&(elem(&1, 1))) |> Enum.sum() %>
-
-        <table class="ui basic compact striped table">
-          <tbody>
-          <%= for {{country, downloads}, index} <- countries |> Enum.take(10) |> Enum.with_index() do %>
-            <tr>
-              <td><%= index + 1 %>) <%= ChangelogWeb.Countries.name(country) %></td>
-              <td><%= downloads %></td>
-              <td><%= SharedHelpers.percent(downloads, countries_downloads) %>%</td>
-            </tr>
-          <% end %>
-          </tbody>
-        </table>
-
-        <button class="ui basic tiny centered button js-modal" data-modal="#countries-modal">View All</button>
-
-        <div class="ui small modal" id="countries-modal">
-          <div class="header">All Countries</div>
-          <div class="content">
-            <table class="ui striped table">
-              <tbody>
-              <%= for {{country, downloads}, index} <- Enum.with_index(countries) do %>
-                <tr>
-                  <td><%= index + 1 %></td>
-                  <td><%= ChangelogWeb.Countries.name(country) %></td>
-                  <td><%= downloads %></td>
-                  <td><%= SharedHelpers.percent(downloads, countries_downloads) %>%</td>
-                </tr>
-              <% end %>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="ui four wide column">
-      <div class="ui segment">
-        <h3 class="ui centered header">
-          <div class="content">
-            <i class="browser icon"></i>
-            Top Clients
-          </div>
-        </h3>
-
-        <% clients = @stats |> EpisodeStat.downloads_by_client() |> round_and_filter() %>
-        <% clients_downloads = clients |> Enum.map(&(elem(&1, 1))) |> Enum.sum() %>
-
-        <table class="ui basic compact striped table">
-          <tbody>
-          <%= for {{client, downloads}, index} <- clients |> Enum.take(10) |> Enum.with_index() do %>
-            <tr>
-              <td><%= index + 1 %>) <%= client %></td>
-              <td><%= downloads %></td>
-              <td><%= SharedHelpers.percent(downloads, clients_downloads) %>%</td>
-            </tr>
-          <% end %>
-          </tbody>
-        </table>
-
-        <button class="ui basic tiny centered button js-modal" data-modal="#clients-modal">View All</button>
-
-        <div class="ui small modal" id="clients-modal">
-          <div class="header">All Clients</div>
-          <div class="content">
-            <table class="ui striped table">
-              <tbody>
-              <%= for {{client, downloads}, index} <- Enum.with_index(clients) do %>
-                <tr>
-                  <td><%= index + 1 %>) <%= client %></td>
-                  <td><%= downloads %></td>
-                  <td><%= SharedHelpers.percent(downloads, clients_downloads) %>%</td>
-                </tr>
-              <% end %>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="ui four wide column">
-      <div class="ui segment">
-        <h3 class="ui centered header">
-          <div class="content">
-            <i class="browser icon"></i>
-            Top Browsers
-          </div>
-        </h3>
-
-        <% browsers = @stats |> EpisodeStat.downloads_by_browser() |> round_and_filter() %>
-        <% browsers_downloads = browsers |> Enum.map(&(elem(&1, 1))) |> Enum.sum() %>
-
-        <table class="ui basic compact striped table">
-          <tbody>
-          <%= for {{browser, downloads}, index} <- Enum.take(browsers, 10) |> Enum.with_index do %>
-            <tr>
-              <td><%= index + 1 %>) <%= browser %></td>
-              <td><%= downloads %></td>
-              <td><%= SharedHelpers.percent(downloads, browsers_downloads) %>%</td>
-            </tr>
-          <% end %>
-          </tbody>
-        </table>
-
-        <button class="ui basic tiny centered button js-modal" data-modal="#browsers-modal">View All</button>
-
-        <div class="ui small modal" id="browsers-modal">
-          <div class="header">All Browsers</div>
-          <div class="content">
-            <table class="ui striped table">
-              <tbody>
-              <%= for {browser, index} <- Enum.with_index(browsers) do %>
-                <% downloads = round(elem(browser, 1)) %>
-                <tr>
-                  <td><%= index + 1 %>) <%= elem(browser, 0) %></td>
-                  <td><%= downloads %></td>
-                  <td><%= SharedHelpers.percent(downloads, browsers_downloads) %>%</td>
-                </tr>
-              <% end %>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="ui four wide column">
-      <div class="ui segment">
-        <h3 class="ui centered header">
-          <div class="content">
-            <i class="browser icon"></i>
-            Top Operating Systems
-          </div>
-        </h3>
-
-        <% oses = @stats |> EpisodeStat.downloads_by_os() |> round_and_filter() %>
-        <% oses_downloads = oses |> Enum.map(&(elem(&1, 1))) |> Enum.sum() %>
-
-        <table class="ui basic compact striped table">
-          <tbody>
-          <%= for {{os, downloads}, index} <- oses |> Enum.take(10) |> Enum.with_index() do %>
-            <tr>
-              <td><%= index + 1 %>) <%= os %></td>
-              <td><%= downloads %></td>
-              <td><%= SharedHelpers.percent(downloads, oses_downloads) %>%</td>
-            </tr>
-          <% end %>
-          </tbody>
-        </table>
-
-        <button class="ui basic tiny centered button js-modal" data-modal="#oses-modal">View All</button>
-
-        <div class="ui small modal" id="oses-modal">
-          <div class="header">All OSes</div>
-          <div class="content">
-            <table class="ui striped table">
-              <tbody>
-              <%= for {{os, downloads}, index} <- Enum.with_index(oses) do %>
-                <tr>
-                  <td><%= index + 1 %>) <%= os %></td>
-                  <td><%= downloads %></td>
-                  <td><%= SharedHelpers.percent(downloads, oses_downloads) %>%</td>
-                </tr>
-              <% end %>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
+  <div class="ui basic segment">
+  <% agents = agents(@stats) %>
+    <table class="ui striped table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Requests</th>
+          <th>Raw UA strings</th>
+        </tr>
+      </thead>
+      <tbody>
+      <%= for {name, data} <- Enum.sort_by(agents, fn {_name, data} -> data["count"] end, :desc) do %>
+        <tr>
+          <td><%= name %></td>
+          <td><%= data["type"] %></td>
+          <td><%= data["count"] |> round() |> SharedHelpers.comma_separated() %></td>
+          <td><details><ul><%= for raw <- data["raw"] do %><li><%= raw %></li><% end %></ul></details></td>
+        </tr>
+      <% end %>
+      </tbody>
+    </table>
   </div>
 <% end %>

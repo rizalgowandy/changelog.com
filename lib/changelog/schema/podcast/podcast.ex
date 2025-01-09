@@ -5,8 +5,9 @@ defmodule Changelog.Podcast do
     Episode,
     EpisodeRequest,
     EpisodeStat,
+    FeedStat,
     Files,
-    NewsItem,
+    Person,
     PodcastTopic,
     PodcastHost,
     Regexp,
@@ -15,38 +16,48 @@ defmodule Changelog.Podcast do
 
   require Logger
 
-  defenum(Status, draft: 0, soon: 1, published: 2, retired: 3)
+  defenum(Status, draft: 0, soon: 1, publishing: 2, inactive: 3, archived: 4)
 
   schema "podcasts" do
     field :name, :string
     field :slug, :string
     field :status, Status
+    field :is_meta, :boolean, virtual: true, default: false
 
     field :welcome, :string
     field :description, :string
     field :extended_description, :string
-
-    field :vanity_domain, :string
     field :keywords, :string
+    field :vanity_domain, :string
+    field :schedule_note, :string
+    field :recorded_live, :boolean, default: false
+
+    field :mastodon_handle, :string
+    field :mastodon_token, :string
     field :twitter_handle, :string
+    field :bsky_handle, :string
     field :apple_url, :string
     field :spotify_url, :string
-    field :schedule_note, :string
+    field :riverside_url, :string
+    field :youtube_url, :string
+    field :clips_url, :string
+    field :zulip_url, :string
+
     field :download_count, :float
     field :reach_count, :integer
-    field :recorded_live, :boolean, default: false
+
     field :partner, :boolean, default: false
     field :position, :integer
     field :subscribers, :map
 
     field :cover, Files.Cover.Type
 
-    has_many :episodes, Episode, on_delete: :delete_all
-    has_many :episode_requests, EpisodeRequest, on_delete: :delete_all
-    has_many :podcast_topics, PodcastTopic, on_delete: :delete_all
+    has_many :episodes, Episode
+    has_many :episode_requests, EpisodeRequest
+    has_many :podcast_topics, PodcastTopic
     has_many :topics, through: [:podcast_topics, :topic]
 
-    has_many :podcast_hosts, PodcastHost, on_delete: :delete_all
+    has_many :podcast_hosts, PodcastHost
     has_many :hosts, through: [:podcast_hosts, :person]
 
     has_many :active_podcast_hosts, PodcastHost, where: [retired: false]
@@ -56,6 +67,7 @@ defmodule Changelog.Podcast do
     has_many :retired_hosts, through: [:retired_podcast_hosts, :person]
 
     has_many :episode_stats, EpisodeStat
+    has_many :feed_stats, FeedStat
     has_many :subscriptions, Subscription, where: [unsubscribed_at: nil]
 
     timestamps()
@@ -65,17 +77,71 @@ defmodule Changelog.Podcast do
     %__MODULE__{
       name: "Changelog Master Feed",
       slug: "master",
-      status: :published,
-      welcome: "The master feed is your one stop shop for all Changelog podcasts",
-      description: "The master feed of all Changelog podcasts",
+      status: :publishing,
+      is_meta: true,
+      twitter_handle: "changelog",
+      bsky_handle: "changelog.com",
+      mastodon_handle: "changelog@changelog.social",
+      mastodon_token: nil,
+      welcome: "Your one-stop shop for all Changelog podcasts",
+      description: "Your one-stop shop for all Changelog podcasts.",
+      extended_description:
+        "Weekly shows about software development, developer culture, open source, building startups, artificial intelligence, shipping code to production, and the people involved. Yes, we focus on the people. Everything else is an implementation detail.",
       keywords: "changelog, open source, oss, software, development, developer, hacker",
-      apple_url: "https://itunes.apple.com/us/podcast/changelog-master-feed/id1164554936",
+      apple_url: "https://podcasts.apple.com/us/podcast/changelog-master-feed/id1164554936",
       spotify_url: "https://open.spotify.com/show/0S1h5K7jm2YvOcM7y1ZMXY",
+      youtube_url: "https://www.youtube.com/changelog",
+      clips_url: "https://www.youtube.com/playlist?list=PLCzseuA9sYreJ1p9RXR6Z667mrMyHXAeH",
+      zulip_url: Application.get_env(:changelog, :zulip_url),
       cover: true,
-      hosts: [],
       active_hosts: [],
       retired_hosts: []
     }
+  end
+
+  def changelog do
+    %__MODULE__{
+      name: "The Changelog",
+      slug: "podcast",
+      status: :publishing,
+      is_meta: true,
+      vanity_domain: "https://changelog.fm",
+      twitter_handle: "changelog",
+      bsky_handle: "changelog.com",
+      mastodon_handle: "changelog@changelog.social",
+      mastodon_token: nil,
+      welcome: "Software's best weekly news brief, deep technical interviews & talk show",
+      description: "Software's best weekly news brief, deep technical interviews & talk show.",
+      extended_description: "",
+      keywords:
+        "changelog, open source, software, development, code, programming, hacker, change log, software engineering",
+      apple_url: "https://podcasts.apple.com/us/podcast/the-changelog/id341623264",
+      spotify_url: "https://open.spotify.com/show/5bBki72YeKSLUqyD94qsuJ",
+      youtube_url: "https://www.youtube.com/playlist?list=PLCzseuA9sYrf9nHWFF1dQsk-X5cghL6UH",
+      clips_url: "https://www.youtube.com/playlist?list=PLCzseuA9sYreumc6MQV7C8FiRuaMczhjK",
+      zulip_url: Application.get_env(:changelog, :zulip_url),
+      cover: true,
+      active_hosts: Person.with_ids([1, 2]) |> Person.newest_first() |> Repo.all()
+    }
+  end
+
+  def plusplus do
+    %__MODULE__{
+      name: "Changelog++",
+      slug: "plusplus",
+      status: :publishing,
+      is_meta: true,
+      description: "Directly support our work. It's better!",
+      cover: true,
+      active_hosts: [],
+      retired_hosts: []
+    }
+  end
+
+  def changelog_ids do
+    from(q in __MODULE__, where: q.slug in ~w(news podcast friends), select: [:id])
+    |> Repo.all()
+    |> Enum.map(& &1.id)
   end
 
   def file_changeset(podcast, attrs \\ %{}), do: cast_attachments(podcast, attrs, [:cover])
@@ -84,7 +150,7 @@ defmodule Changelog.Podcast do
     podcast
     |> cast(
       attrs,
-      ~w(name slug status vanity_domain schedule_note welcome description extended_description keywords twitter_handle apple_url spotify_url recorded_live partner position)a
+      ~w(name slug status vanity_domain schedule_note welcome description extended_description keywords mastodon_handle mastodon_token twitter_handle bsky_handle apple_url spotify_url riverside_url youtube_url clips_url zulip_url recorded_live partner position)a
     )
     |> validate_required([:name, :slug, :status])
     |> validate_format(:vanity_domain, Regexp.http(), message: Regexp.http_message())
@@ -102,51 +168,74 @@ defmodule Changelog.Podcast do
     |> file_changeset(attrs)
   end
 
-  def active(query \\ __MODULE__), do: from(q in query, where: q.status in [^:soon, ^:published])
-  def draft(query \\ __MODULE__), do: from(q in query, where: q.status == ^:draft)
+  def private(query \\ __MODULE__), do: from(q in query, where: q.status in [^:draft, ^:archived])
 
   def public(query \\ __MODULE__),
-    do: from(q in query, where: q.status in [^:soon, ^:published, ^:retired])
+    do: from(q in query, where: q.status in [^:soon, ^:publishing, ^:inactive])
 
-  def retired(query \\ __MODULE__), do: from(q in query, where: q.status == ^:retired)
-  def not_retired(query \\ __MODULE__), do: from(q in query, where: q.status != ^:retired)
+  def active(query \\ __MODULE__), do: from(q in query, where: q.status in [^:soon, ^:publishing])
+  def inactive(query \\ __MODULE__), do: from(q in query, where: q.status == ^:inactive)
+
+  def draft(query \\ __MODULE__), do: from(q in query, where: q.status == ^:draft)
+  def archived(query \\ __MODULE__), do: from(q in query, where: q.status == ^:archived)
+
   def oldest_first(query \\ __MODULE__), do: from(q in query, order_by: [asc: q.id])
-  def retired_last(query \\ __MODULE__), do: from(q in query, order_by: [asc: q.status])
 
+  def with_vanity_domain(query \\ __MODULE__),
+    do: from(q in query, where: not is_nil(q.vanity_domain))
+
+  def get_by_slug("interviews"), do: get_by_slug("podcast")
+  def get_by_slug("master"), do: master()
+
+  def get_by_slug(slug) do
+    public()
+    |> preload_active_hosts()
+    |> preload_retired_hosts()
+    |> Repo.get_by(slug: slug)
+  end
+
+  def get_by_slug!("interviews"), do: get_by_slug!("podcast")
   def get_by_slug!("master"), do: master()
 
   def get_by_slug!(slug) do
     public()
-    |> Repo.get_by!(slug: slug)
     |> preload_active_hosts()
     |> preload_retired_hosts()
+    |> Repo.get_by!(slug: slug)
   end
 
   def get_episodes(%{slug: "master"}), do: from(e in Episode)
+
+  def get_episodes(%{slug: "podcast", is_meta: true}),
+    do: from(e in Episode, where: e.podcast_id in ^changelog_ids())
+
   def get_episodes(podcast), do: assoc(podcast, :episodes)
-
-  def get_news_items(%{slug: "master"}), do: NewsItem.with_object(NewsItem.audio())
-  def get_news_items(podcast), do: NewsItem.with_object_prefix(NewsItem.audio(), podcast.id)
-
-  def get_news_item_episode_ids!(podcast) do
-    podcast
-    |> get_news_items()
-    |> Ecto.Query.select([:object_id])
-    |> Repo.all()
-    |> Enum.map(fn i ->
-      i.object_id
-      |> String.split(":")
-      |> List.last()
-    end)
-  end
 
   def episode_count(podcast), do: podcast |> assoc(:episodes) |> Repo.count()
 
   def subscription_count(podcast), do: podcast |> assoc(:subscriptions) |> Repo.count()
 
-  def has_feed(podcast), do: podcast.slug != "backstage"
+  def has_feed(podcast), do: !Enum.member?(["backstage", "plusplus"], podcast.slug)
+
+  def is_changelog(podcast), do: podcast.slug == "podcast" && podcast.is_meta
+
+  def is_a_changelog_pod(podcast) do
+    Enum.member?(~w(news podcast friends), podcast.slug)
+  end
+
+  def is_interviews(podcast), do: podcast.slug == "podcast" && !podcast.is_meta
+
+  def is_news(podcast), do: podcast.slug == "news"
 
   def is_master(podcast), do: podcast.slug == "master"
+
+  def is_active(podcast), do: Enum.member?([:soon, :publishing], podcast.status)
+
+  def is_publishing(podcast), do: podcast.status == :publishing
+
+  def slug_with_interviews_special_case(podcast) do
+    if is_interviews(podcast), do: "interviews", else: podcast.slug
+  end
 
   def published_episode_count(%{slug: "master"}), do: Repo.count(Episode.published())
 
@@ -169,12 +258,27 @@ defmodule Changelog.Podcast do
     |> Enum.max(fn -> 0 end)
   end
 
+  def last_published_numbered_slug(podcast) do
+    query =
+      podcast
+      |> assoc(:episodes)
+      |> Episode.with_numbered_slug()
+      |> Episode.published()
+      |> Episode.newest_first()
+      |> Episode.limit(1)
+
+    case Repo.one(query) do
+      %{slug: slug} -> String.to_integer(slug)
+      nil -> 0
+    end
+  end
+
   def latest_episode(podcast) do
     podcast
     |> assoc(:episodes)
     |> Episode.published()
     |> Episode.newest_first()
-    |> Ecto.Query.first()
+    |> Episode.limit(1)
     |> Repo.one()
   end
 
@@ -252,26 +356,38 @@ defmodule Changelog.Podcast do
     |> Repo.update!()
   end
 
-  def update_subscribers(slug, client, count) when is_binary(slug) do
-    podcast = get_by_slug!(slug)
-    update_subscribers(podcast, client, count)
-  end
+  def update_subscribers(podcast) do
+    stat =
+      podcast
+      |> assoc(:feed_stats)
+      |> FeedStat.newest_first()
+      |> FeedStat.limit(1)
+      |> Repo.one()
 
-  def update_subscribers(%{slug: "master"}, client, count) do
-    update_subscribers("backstage", client, count)
-  end
+    if stat do
+      subscribers =
+        stat.agents
+        |> Enum.filter(fn {_name, data} -> String.match?(data["raw"], ~r/subscribers/) end)
+        |> Enum.map(fn {name, data} ->
+          subs =
+            case Regex.named_captures(~r/(?<subs>\d+) subscribers/, data["raw"]) do
+              %{"subs" => count} -> String.to_integer(count)
+              _else -> 0
+            end
 
-  def update_subscribers(podcast = %{subscribers: nil}, client, count) do
-    podcast
-    |> Map.put(:subscribers, %{})
-    |> update_subscribers(client, count)
-  end
+          {name, subs}
+        end)
+        # less than 5 subs either an error or we don't care
+        |> Enum.filter(fn {_name, subs} -> subs >= 5 end)
+        |> Enum.into(%{})
 
-  def update_subscribers(podcast, client, count) do
-    new_subscribers = Map.put(podcast.subscribers, client, count)
+      new_subscribers = Map.merge(podcast.subscribers || %{}, subscribers)
 
-    podcast
-    |> change(%{subscribers: new_subscribers})
-    |> Repo.update!()
+      podcast
+      |> change(%{subscribers: new_subscribers})
+      |> Repo.update!()
+    else
+      podcast
+    end
   end
 end

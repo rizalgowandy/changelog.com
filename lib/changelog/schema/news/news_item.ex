@@ -18,8 +18,8 @@ defmodule Changelog.NewsItem do
     UrlKit
   }
 
-  defenum(Status, declined: -1, draft: 0, queued: 1, submitted: 2, published: 3)
-  defenum(Type, link: 0, audio: 1, video: 2, project: 3, announcement: 4)
+  defenum(Status, declined: -1, draft: 0, queued: 1, submitted: 2, published: 3, accepted: 4)
+  defenum(Type, link: 0, audio: 1, video: 2, project: 3, announcement: 4, post: 5)
 
   schema "news_items" do
     field :status, Status, default: :draft
@@ -41,21 +41,18 @@ defmodule Changelog.NewsItem do
     field :impression_count, :integer, default: 0
     field :click_count, :integer, default: 0
 
-    field :decline_message, :string, default: ""
+    field :message, :string, default: ""
 
     belongs_to :author, Person
     belongs_to :logger, Person
     belongs_to :submitter, Person
     belongs_to :source, NewsSource
-    has_one :news_queue, NewsQueue, foreign_key: :item_id, on_delete: :delete_all
+    has_one :news_queue, NewsQueue, foreign_key: :item_id
 
-    has_many :news_item_topics, NewsItemTopic,
-      foreign_key: :item_id,
-      on_delete: :delete_all,
-      on_replace: :delete
+    has_many :news_item_topics, NewsItemTopic, foreign_key: :item_id, on_replace: :delete
 
     has_many :topics, through: [:news_item_topics, :topic]
-    has_many :comments, NewsItemComment, foreign_key: :item_id, on_delete: :delete_all
+    has_many :comments, NewsItemComment, foreign_key: :item_id
     has_many :subscriptions, Subscription, where: [unsubscribed_at: nil], foreign_key: :item_id
 
     timestamps()
@@ -71,19 +68,15 @@ defmodule Changelog.NewsItem do
   def feed_only(query \\ __MODULE__), do: from(q in query, where: q.feed_only)
   def non_feed_only(query \\ __MODULE__), do: from(q in query, where: not q.feed_only)
 
+  def accepted(query \\ __MODULE__), do: from(q in query, where: q.status == ^:accepted)
   def declined(query \\ __MODULE__), do: from(q in query, where: q.status == ^:declined)
   def drafted(query \\ __MODULE__), do: from(q in query, where: q.status == ^:draft)
 
   def logged_by(query \\ __MODULE__, person),
     do: from(q in query, where: q.logger_id == ^person.id)
 
-  def post(query \\ __MODULE__), do: from(q in query, where: like(q.object_id, ^"posts:%"))
-
-  def non_post(query \\ __MODULE__),
-    do:
-      from(q in query,
-        where: fragment("? is null or ? not like 'posts:%'", q.object_id, q.object_id)
-      )
+  def post(query \\ __MODULE__), do: from(q in query, where: q.type == ^:post)
+  def non_post(query \\ __MODULE__), do: from(q in query, where: q.type != ^:post)
 
   def published(query \\ __MODULE__),
     do: from(q in query, where: q.status == ^:published, where: q.published_at <= ^Timex.now())
@@ -194,225 +187,6 @@ defmodule Changelog.NewsItem do
     |> file_changeset(attrs)
   end
 
-  def get_pinned_non_feed_news_items do
-    from(news_item in __MODULE__,
-      left_join: author in assoc(news_item, :author),
-      left_join: comments in assoc(news_item, :comments),
-      left_join: submitter in assoc(news_item, :submitter),
-      left_join: source in assoc(news_item, :source),
-      left_join: logger in assoc(news_item, :logger),
-      left_join: news_item_topics in assoc(news_item, :news_item_topics),
-      left_join: news_item_topics_topic in assoc(news_item_topics, :topic),
-      where: news_item.status == ^:published,
-      where: news_item.published_at <= ^Timex.now(),
-      where: not news_item.feed_only,
-      where: news_item.pinned,
-      order_by: [desc: :published_at, asc: news_item_topics.position],
-      preload: [
-        author: author,
-        comments: comments,
-        submitter: submitter,
-        topics: news_item_topics_topic,
-        source: source,
-        logger: logger
-      ]
-    )
-    |> Repo.all()
-  end
-
-  def get_unpinned_non_feed_news_items(params) do
-    page =
-      from(news_item in __MODULE__,
-        where: news_item.status == ^:published,
-        where: news_item.published_at <= ^Timex.now(),
-        where: not news_item.feed_only,
-        where: not news_item.pinned,
-        order_by: [desc: :published_at]
-      )
-      |> Repo.paginate(Map.put(params, :page_size, 20))
-
-    news_item_ids =
-      page
-      |> Map.get(:entries)
-      |> Enum.map(fn news_item ->
-        news_item.id
-      end)
-
-    results =
-      from(news_item in __MODULE__,
-        left_join: author in assoc(news_item, :author),
-        left_join: comments in assoc(news_item, :comments),
-        left_join: submitter in assoc(news_item, :submitter),
-        left_join: source in assoc(news_item, :source),
-        left_join: logger in assoc(news_item, :logger),
-        left_join: news_item_topics in assoc(news_item, :news_item_topics),
-        left_join: news_item_topics_topic in assoc(news_item_topics, :topic),
-        where: news_item.id in ^news_item_ids,
-        order_by: [desc: :published_at, asc: news_item_topics.position],
-        preload: [
-          author: author,
-          comments: comments,
-          submitter: submitter,
-          topics: news_item_topics_topic,
-          source: source,
-          logger: logger
-        ]
-      )
-      |> Repo.all()
-
-    {page, results}
-  end
-
-  def get_post_news_items(params) do
-    page =
-      from(news_item in __MODULE__,
-        where: like(news_item.object_id, ^"posts:%"),
-        where: news_item.status == ^:published,
-        where: news_item.published_at <= ^Timex.now(),
-        where: not news_item.feed_only,
-        order_by: [desc: :inserted_at]
-      )
-      |> Repo.paginate(Map.put(params, :page_size, 15))
-
-    news_item_ids =
-      page
-      |> Map.get(:entries)
-      |> Enum.map(fn news_item ->
-        news_item.id
-      end)
-
-    results =
-      from(news_item in __MODULE__,
-        left_join: author in assoc(news_item, :author),
-        left_join: logger in assoc(news_item, :logger),
-        left_join: submitter in assoc(news_item, :submitter),
-        left_join: topics in assoc(news_item, :topics),
-        left_join: source in assoc(news_item, :source),
-        left_join: comments in assoc(news_item, :comments),
-        left_join: news_item_topics in assoc(news_item, :news_item_topics),
-        left_join: news_item_topics_topic in assoc(news_item_topics, :topic),
-        where: news_item.id in ^news_item_ids,
-        order_by: [desc: :inserted_at, asc: news_item_topics.position, desc: topics.id],
-        preload: [
-          author: author,
-          comments: comments,
-          logger: logger,
-          submitter: submitter,
-          source: source,
-          topics: topics,
-          news_item_topics: {news_item_topics, topic: news_item_topics_topic}
-        ]
-      )
-      |> Repo.all()
-      |> batch_load_objects()
-
-    {page, results}
-  end
-
-  def batch_load_objects(news_items) do
-    {episodes, posts} =
-      Enum.split_with(news_items, fn news_item ->
-        news_item.type == :audio
-      end)
-
-    episode_ids =
-      episodes
-      |> Enum.map(fn
-        %{object_id: nil} ->
-          nil
-
-        %{object_id: object_id} ->
-          [_podcast_id, episode_id] = String.split(object_id, ":")
-          episode_id
-
-        _ ->
-          nil
-      end)
-      |> Enum.reject(fn
-        nil -> true
-        _ -> false
-      end)
-
-    # Only hit the DB if there are episodes to resolve
-    episode_data =
-      if episode_ids == [] do
-        []
-      else
-        from(episode in Episode.exclude_transcript(),
-          left_join: podcast in assoc(episode, :podcast),
-          left_join: episode_guests in assoc(episode, :episode_guests),
-          left_join: person in assoc(episode_guests, :person),
-          left_join: guests in assoc(episode, :guests),
-          left_join: hosts in assoc(episode, :hosts),
-          where: episode.id in ^episode_ids,
-          order_by: [asc: episode_guests.position],
-          preload: [
-            podcast: podcast,
-            episode_guests: {episode_guests, person: person},
-            guests: guests,
-            hosts: hosts
-          ]
-        )
-        |> Repo.all()
-      end
-
-    post_ids =
-      posts
-      |> Enum.map(fn
-        %{object_id: nil} ->
-          nil
-
-        %{object_id: object_id} ->
-          [_, slug] = String.split(object_id, ":")
-          slug
-
-        _ ->
-          nil
-      end)
-
-    # Only hit the DB if there are posts to resolve
-    post_data =
-      if post_ids == [] do
-        []
-      else
-        from(post in Post.published(),
-          left_join: author in assoc(post, :author),
-          left_join: editor in assoc(post, :editor),
-          left_join: post_topics in assoc(post, :post_topics),
-          left_join: post_topics_topic in assoc(post_topics, :topic),
-          left_join: topics in assoc(post, :topics),
-          where: post.slug in ^post_ids,
-          order_by: [asc: post_topics.position, asc: post_topics_topic.id],
-          preload: [
-            author: author,
-            editor: editor,
-            post_topics: {post_topics, topic: post_topics_topic},
-            topics: topics
-          ]
-        )
-        |> Repo.all()
-      end
-
-    news_items
-    |> Enum.map(fn
-      %{object_id: nil} = result ->
-        result
-
-      %{type: :audio, object_id: object_id} = result ->
-        [_podcast_id, episode_id] = String.split(object_id, ":")
-
-        object =
-          Enum.find(episode_data, fn episode -> Integer.to_string(episode.id) == episode_id end)
-
-        %{result | object: object}
-
-      result ->
-        [_, slug] = String.split(result.object_id, ":")
-        object = Enum.find(post_data, fn post -> post.slug == slug end)
-        %{result | object: object}
-    end)
-  end
-
   def slug(item) do
     item.headline
     |> String.downcase()
@@ -426,7 +200,9 @@ defmodule Changelog.NewsItem do
     object =
       case item.type do
         :audio -> get_episode_object(item.object_id)
-        _else -> get_post_object(item.object_id)
+        :post -> get_post_object(item.object_id)
+        :link -> get_news_object(item.object_id)
+        _else -> nil
       end
 
     load_object(item, object)
@@ -445,7 +221,7 @@ defmodule Changelog.NewsItem do
     load_object(item, episode)
   end
 
-  defp get_episode_object(object_id) when is_nil(object_id), do: nil
+  defp get_episode_object(nil), do: nil
 
   defp get_episode_object(object_id) do
     [_podcast_id, episode_id] = String.split(object_id, ":")
@@ -457,7 +233,13 @@ defmodule Changelog.NewsItem do
     |> Repo.get(episode_id)
   end
 
-  defp get_post_object(object_id) when is_nil(object_id), do: nil
+  # items that link to news objects are actually the same as items
+  # that link to episode objects, but we differentiate them because
+  # they are not audio, they are merely links that have been accepted
+  # and included in a news episode/email
+  defp get_news_object(object_id), do: get_episode_object(object_id)
+
+  defp get_post_object(nil), do: nil
 
   defp get_post_object(object_id) do
     [_, slug] = String.split(object_id, ":")
@@ -491,8 +273,8 @@ defmodule Changelog.NewsItem do
     query
     |> Ecto.Query.preload(:author)
     |> Ecto.Query.preload(:logger)
-    |> Ecto.Query.preload(:source)
     |> Ecto.Query.preload(:submitter)
+    |> preload_source()
     |> preload_topics()
   end
 
@@ -500,8 +282,8 @@ defmodule Changelog.NewsItem do
     item
     |> Repo.preload(:author)
     |> Repo.preload(:logger)
-    |> Repo.preload(:source)
     |> Repo.preload(:submitter)
+    |> preload_source()
     |> preload_topics()
   end
 
@@ -511,6 +293,14 @@ defmodule Changelog.NewsItem do
 
   def preload_comments(item) do
     Repo.preload(item, comments: {NewsItemComment.newest_first(), [:author]})
+  end
+
+  def preload_source(query = %Ecto.Query{}) do
+    Ecto.Query.preload(query, :source)
+  end
+
+  def preload_source(item) do
+    Repo.preload(item, :source)
   end
 
   def preload_topics(query = %Ecto.Query{}) do
@@ -525,11 +315,21 @@ defmodule Changelog.NewsItem do
     |> Repo.preload(:topics)
   end
 
+  def accept!(item, object_id), do: accept!(item, object_id, "")
+
+  def accept!(item, object_id, message) do
+    item
+    |> change(%{status: :accepted})
+    |> change(%{message: message})
+    |> change(%{object_id: "news:#{object_id}"})
+    |> Repo.update!()
+  end
+
   def decline!(item), do: item |> change(%{status: :declined}) |> Repo.update!()
   def decline!(item, ""), do: decline!(item)
 
   def decline!(item, message),
-    do: item |> change(%{status: :declined, decline_message: message}) |> Repo.update!()
+    do: item |> change(%{status: :declined, message: message}) |> Repo.update!()
 
   def queue!(item), do: item |> change(%{status: :queued}) |> Repo.update!()
 
@@ -548,7 +348,7 @@ defmodule Changelog.NewsItem do
 
   def is_audio(item), do: item.type == :audio
   def is_non_audio(item), do: item.type != :audio
-  def is_post(item), do: item.type == :link && !is_nil(item.object_id)
+  def is_post(item), do: item.type == :post
   def is_video(item), do: item.type == :video
 
   def is_draft(item), do: item.status == :draft
@@ -595,70 +395,5 @@ defmodule Changelog.NewsItem do
     |> limit(50)
     |> Repo.all()
     |> Enum.map(&load_object/1)
-  end
-
-  def recommend_podcasts(episode = %Episode{}, num_recommendations) do
-    recommendation_query = "SELECT * FROM query_related_podcast($1::integer, $2::integer)"
-    query_args = [episode.id, num_recommendations]
-
-    ConCache.fetch_or_store(
-      :news_item_recommendations,
-      {:podcast, episode.id, num_recommendations},
-      fn ->
-        query_recommendations(recommendation_query, query_args)
-      end
-    )
-  end
-
-  def recommend_news_items(news_item = %__MODULE__{}, num_recommendations) do
-    recommendation_query = "SELECT * FROM query_related_news_item($1::integer, $2::integer)"
-    query_args = [news_item.id, num_recommendations]
-
-    ConCache.fetch_or_store(
-      :news_item_recommendations,
-      {:news_item, news_item.id, num_recommendations},
-      fn ->
-        query_recommendations(recommendation_query, query_args)
-      end
-    )
-  end
-
-  def recommend_posts(news_item = %__MODULE__{}, num_recommendations) do
-    recommendation_query = "SELECT * FROM query_related_post($1::integer, $2::integer)"
-    query_args = [news_item.id, num_recommendations]
-
-    ConCache.fetch_or_store(
-      :news_item_recommendations,
-      {:post, news_item.id, num_recommendations},
-      fn ->
-        query_recommendations(recommendation_query, query_args)
-      end
-    )
-  end
-
-  defp query_recommendations(query, args) do
-    try do
-      query
-      |> Changelog.Repo.query(args)
-      |> case do
-        {:ok, %Postgrex.Result{columns: columns, rows: rows}} ->
-          results =
-            Enum.map(rows, fn row ->
-              columns
-              |> Enum.zip(row)
-              |> Map.new()
-            end)
-
-          {:ok, results}
-
-        error ->
-          Logger.warn("Failed to fetch recommended items: #{inspect(error)}")
-          {:error, error}
-      end
-    rescue
-      error ->
-        Logger.warn("Failed to fetch recommended items: #{inspect(error)}")
-        {:error, error}
-    end
   end
 end

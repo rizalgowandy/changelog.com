@@ -27,6 +27,16 @@ defmodule ChangelogWeb.SharedHelpersTest do
              "The Gangsta, The Killa, The Dope Dealer, and You"
   end
 
+  describe "percent/2" do
+    test "0 when divisor is 0" do
+      assert percent(1, 0) == 0
+    end
+
+    test "rounds to nearest integer percent" do
+      assert percent(5, 22) == 23
+    end
+  end
+
   describe "domain_name" do
     test "includes subdomain by default" do
       assert domain_name("https://blog.jerodsanto.net/2018") == "blog.jerodsanto.net"
@@ -58,6 +68,24 @@ defmodule ChangelogWeb.SharedHelpersTest do
     test "tests as of given time when given past DateTIme" do
       refute is_past?(hours_from_now(2), hours_from_now(1))
       assert is_past?(hours_from_now(1), hours_from_now(2))
+    end
+  end
+
+  describe "mastodon_url/1" do
+    test "is empty when nil" do
+      assert mastodon_url(nil) == ""
+    end
+
+    test "is empty when nil in map" do
+      assert mastodon_url(%{mastodon_handle: nil}) == ""
+    end
+
+    test "converts handle as string" do
+      assert mastodon_url("jerod@changelog.social") == "https://changelog.social/@jerod"
+    end
+
+    test "converts handle in map" do
+      assert mastodon_url(%{mastodon_handle: "jerod@changelog.social"}) == "https://changelog.social/@jerod"
     end
   end
 

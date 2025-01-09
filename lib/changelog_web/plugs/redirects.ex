@@ -2,50 +2,56 @@ defmodule ChangelogWeb.Plug.Redirects do
   @moduledoc """
   Handles all redirects, legacy and otherwise
   """
+  use ChangelogWeb, :verified_routes
+
   alias ChangelogWeb.RedirectController, as: Redirect
   import ChangelogWeb.Plug.Conn
 
   @external %{
-    "/datadog" =>
-      "https://www.datadoghq.com/lpgs/?utm_source=Advertisement&utm_medium=Advertisement&utm_campaign=ChangelogPodcast-Tshirt",
     "/sentry" => "https://sentry.io/from/changelog/",
-    "/codacy" =>
-      "https://codacy.com/product?utm_source=Changelog&utm_medium=cpm&utm_campaign=Changelog-Podcast",
-    "/reactpodcast" => "https://reactpodcast.simplecast.com"
+    "/square" => "https://developer.squareup.com/",
+    "/tailscale" =>
+      "https://tailscale.com/?utm_source=sponsorship&utm_medium=podcast&utm_campaign=changelog&utm_term=changelog",
+    "/reactpodcast" => "https://reactpodcast.simplecast.com",
+    "/store" => "https://merch.changelog.com"
   }
 
   @internal %{
     "/rss" => "/feed",
     "/podcast/rss" => "/podcast/feed",
+    "/feed.js" => "/feed",
+    "/reactpodcast/feed" => "/jsparty/feed",
     "/team" => "/about",
     "/changeloggers" => "/about",
-    "/membership" => "/community",
-    "/store" => "/community",
+    "/membership" => "/++",
     "/sponsorship" => "/sponsor",
     "/soundcheck" => "/guest",
     "/submit" => "/news/submit",
-    "blog" => "/posts"
+    "/blog" => "/posts",
+    "/weekly" => "/news",
+    "/weekly/archive" => "/news",
+    "/weekly/unsubscribed" => "/news"
   }
 
   def init(opts), do: opts
 
   def call(conn, _opts) do
+    host = get_host(conn)
     default_host = ChangelogWeb.Endpoint.host()
 
-    case get_host(conn) do
-      "www.changelog.com" -> domain_redirects(conn)
-      ^default_host -> changelog_redirects(conn)
-      _else -> conn
+    cond do
+      String.contains?(host, "changelog.com") ->
+        redirects(conn)
+
+      String.contains?(host, default_host) ->
+        redirects(conn)
+
+      true ->
+        conn
     end
   end
 
-  defp domain_redirects(conn = %{request_path: path}) do
-    conn
-    |> Plug.Conn.put_status(301)
-    |> Redirect.call(external: "https://#{ChangelogWeb.Endpoint.host()}" <> path)
-  end
-
-  defp changelog_redirects(conn) do
+  defp redirects(conn) do
     conn
     |> internal_redirect()
     |> podcast_redirect()
@@ -73,6 +79,12 @@ defmodule ChangelogWeb.Plug.Redirects do
   end
 
   defp external_redirect(conn = %{halted: true}), do: conn
+
+  defp external_redirect(conn = %{request_path: "/favicon.ico"}) do
+    conn
+    |> Redirect.call(external: url(~p"/favicon.ico"))
+    |> Plug.Conn.halt()
+  end
 
   defp external_redirect(conn = %{request_path: path}) do
     if destination = Map.get(@external, path, false) do

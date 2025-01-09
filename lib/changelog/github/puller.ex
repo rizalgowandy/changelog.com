@@ -1,8 +1,12 @@
 defmodule Changelog.Github.Puller do
   require Logger
 
-  alias Changelog.{Cache, Episode, Github, Podcast, Repo}
+  alias Changelog.{Cache, Episode, Github, HTTP, Podcast, Repo}
   alias ChangelogWeb.PodcastView
+
+  defmodule GetException do
+    defexception message: "Failed to get unknown"
+  end
 
   def update(type, items) when is_list(items) do
     for item <- items do
@@ -54,10 +58,15 @@ defmodule Changelog.Github.Puller do
     episode = Episode.preload_podcast(episode)
     source = Github.Source.new(type, episode)
 
-    case HTTPoison.get!(source.raw_url) do
+    case HTTP.get!(source.raw_url) do
       %{status_code: 200, body: text} -> update_function(type, episode, text)
-      _else -> Logger.info("#{String.capitalize(type)}: Failed to fetch #{source.raw_url}")
+      _else ->
+        message = "Failed to get #{source.raw_url}"
+        Sentry.capture_exception(%__MODULE__.GetException{message: message})
+        Logger.info(message)
     end
+
+    episode
   end
 
   defp update_function("transcripts", episode, text) do

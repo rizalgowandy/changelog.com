@@ -1,0 +1,44 @@
+name: "Ship It!"
+
+concurrency:
+  # There should only be able one running job per repository / branch combo.
+  # We do not want multiple deploys running in parallel.
+  group: ${{ github.repository }}-${{ github.ref_name }}
+
+on:
+  push:
+    branches:
+      - 'master'
+  pull_request:
+  workflow_dispatch:
+
+# All jobs have the same outcome. We define multiple for resiliency reasons.
+jobs:
+  # In thechangelog/changelog repository (a.k.a. upstream),
+  # this is the preferred default:
+  dagger-on-namespace:
+    if: ${{ contains(vars.RUNS_ON, 'namespace') }}
+    uses: ./.github/workflows/dagger_on_namespace.yml
+    secrets: inherit
+
+  # Just in case Namespace.so misbehaves, we want a fallback:
+  # a.k.a. "Always run 2 of everything"
+  dagger-on-github-fallback:
+    needs: dagger-on-namespace
+    if: ${{ failure() }}
+    uses: ./.github/workflows/dagger_on_github.yml
+    secrets: inherit
+
+  # This is an experimental job which only runs the CI part of our pipeline.
+  # In other words, this does not run CD, it does not deploy our app.
+  dagger-on-k8s:
+    if: ${{ contains(vars.RUNS_ON, 'k8s') }}
+    uses: ./.github/workflows/dagger_on_k8s.yml
+    secrets: inherit
+
+  # As forks will not have access to our Namespace.so,
+  # we fallback to GitHub default:
+  dagger-on-github:
+    if: ${{ !contains(vars.RUNS_ON, 'namespace') }}
+    uses: ./.github/workflows/dagger_on_github.yml
+    secrets: inherit

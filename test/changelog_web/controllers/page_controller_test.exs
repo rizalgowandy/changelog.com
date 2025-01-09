@@ -9,10 +9,7 @@ defmodule ChangelogWeb.PageControllerTest do
         "/films",
         "/community",
         "/nightly",
-        "/sponsor",
-        "/sponsor/pricing",
-        "/weekly",
-        "/weekly/archive"
+        "/manifest.json"
       ],
       fn route ->
         conn = get(conn, route)
@@ -38,26 +35,12 @@ defmodule ChangelogWeb.PageControllerTest do
   describe "plusplus" do
     test "it redirects to supercast from /++", %{conn: conn} do
       conn = get(conn, "/++")
-      assert redirected_to(conn) == "https://changelog.supercast.tech"
+      assert redirected_to(conn) == Application.get_env(:changelog, :plusplus_url)
     end
 
     test "it redirects to supercast from /plusplus", %{conn: conn} do
       conn = get(conn, "/plusplus")
-      assert redirected_to(conn) == "https://changelog.supercast.tech"
-    end
-  end
-
-  describe "sponsor stories" do
-    test "it renders for all known sponsor stories", %{conn: conn} do
-      for story <- Changelog.SponsorStory.all() do
-        conn = get(conn, Routes.page_path(conn, :sponsor_story, story.slug))
-        assert html_response(conn, 200) =~ story.sponsor
-      end
-    end
-
-    test "it falls back to the rollbar story", %{conn: conn} do
-      conn = get(conn, Routes.page_path(conn, :sponsor_story, "ohai"))
-      assert html_response(conn, 200) =~ "Rollbar"
+      assert redirected_to(conn) == Application.get_env(:changelog, :plusplus_url)
     end
   end
 end

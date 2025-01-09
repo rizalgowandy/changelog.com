@@ -1,10 +1,11 @@
 defmodule ChangelogWeb.Admin.PersonControllerTest do
   use ChangelogWeb.ConnCase
-  use Bamboo.Test
+  use Changelog.EmailCase
+  use Oban.Testing, repo: Changelog.Repo
 
   import Mock
 
-  alias Changelog.{Person, Slack}
+  alias Changelog.{Person, Slack, Zulip}
 
   @valid_attrs %{name: "Joe Blow", email: "joe@blow.com", handle: "joeblow"}
   @invalid_attrs %{name: "", email: "noname@nope.com"}
@@ -41,7 +42,7 @@ defmodule ChangelogWeb.Admin.PersonControllerTest do
     conn = post(conn, Routes.admin_person_path(conn, :create), person: @valid_attrs, close: true)
 
     person = Repo.one(from p in Person, where: p.email == ^@valid_attrs[:email])
-    assert_no_emails_delivered()
+    assert_no_email_sent()
     assert redirected_to(conn) == Routes.admin_person_path(conn, :edit, person)
     assert count(Person) == 1
   end
@@ -55,8 +56,10 @@ defmodule ChangelogWeb.Admin.PersonControllerTest do
         next: Routes.admin_person_path(conn, :index)
       )
 
+    assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :email)
+
     person = Repo.one(from p in Person, where: p.email == ^@valid_attrs[:email])
-    assert_delivered_email(ChangelogWeb.Email.community_welcome(person))
+    assert_email_sent(ChangelogWeb.Email.community_welcome(person))
     assert redirected_to(conn) == Routes.admin_person_path(conn, :index)
     assert count(Person) == 1
   end
@@ -66,8 +69,10 @@ defmodule ChangelogWeb.Admin.PersonControllerTest do
     conn =
       post(conn, Routes.admin_person_path(conn, :create), person: @valid_attrs, welcome: "guest")
 
+    assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :email)
+
     person = Repo.one(from p in Person, where: p.email == ^@valid_attrs[:email])
-    assert_delivered_email(ChangelogWeb.Email.guest_welcome(person))
+    assert_email_sent(ChangelogWeb.Email.guest_welcome(person))
     assert redirected_to(conn) == Routes.admin_person_path(conn, :edit, person)
     assert count(Person) == 1
   end
@@ -114,9 +119,13 @@ defmodule ChangelogWeb.Admin.PersonControllerTest do
   test "deletes a person and redirects", %{conn: conn} do
     person = insert(:person)
 
-    conn = delete(conn, Routes.admin_person_path(conn, :delete, person.id))
-    assert redirected_to(conn) == Routes.admin_person_path(conn, :index)
-    assert count(Person) == 0
+    with_mock(Craisin.Subscriber, delete: fn _, _ -> true end) do
+      conn = delete(conn, Routes.admin_person_path(conn, :delete, person.id))
+
+      assert redirected_to(conn) == Routes.admin_person_path(conn, :index)
+      assert count(Person) == 0
+      assert called(Craisin.Subscriber.delete(:_, person.email))
+    end
   end
 
   @tag :as_admin
@@ -131,6 +140,18 @@ defmodule ChangelogWeb.Admin.PersonControllerTest do
     end
   end
 
+  @tag :as_admin
+  test "invites to zulip", %{conn: conn} do
+    person = insert(:person)
+
+    with_mock(Zulip, invite: fn _ -> %{"ok" => true} end) do
+      conn = post(conn, ~p"/admin/people/#{person.id}/zulip")
+
+      assert redirected_to(conn) == ~p"/admin/people"
+      assert called(Zulip.invite(:_))
+    end
+  end
+
   test "requires user auth on all actions", %{conn: conn} do
     person = insert(:person)
 
@@ -141,7 +162,9 @@ defmodule ChangelogWeb.Admin.PersonControllerTest do
         post(conn, Routes.admin_person_path(conn, :create), person: @valid_attrs),
         get(conn, Routes.admin_person_path(conn, :edit, person.id)),
         put(conn, Routes.admin_person_path(conn, :update, person.id), person: @valid_attrs),
-        delete(conn, Routes.admin_person_path(conn, :delete, person.id))
+        delete(conn, Routes.admin_person_path(conn, :delete, person.id)),
+        get(conn, Routes.admin_person_path(conn, :news, person.id)),
+        get(conn, Routes.admin_person_path(conn, :comments, person.id))
       ],
       fn conn ->
         assert html_response(conn, 302)

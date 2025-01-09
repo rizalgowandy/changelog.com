@@ -6,36 +6,36 @@ defmodule ChangelogWeb.Admin.PageController do
     Episode,
     EpisodeRequest,
     EpisodeStat,
-    NewsItem,
-    Newsletters,
     Person,
-    Podcast
+    Podcast,
+    Subscription
   }
 
   plug Authorize, Policies.Admin.Page
 
-  def index(conn = %{assigns: %{current_user: me = %{admin: true}}}, _params) do
-    newsletters =
-      Newsletters.all()
-      |> Enum.map(&Newsletters.get_stats/1)
-
+  def index(conn = %{assigns: %{current_user: %{admin: true}}}, _params) do
     conn
-    |> assign(:newsletters, newsletters)
+    |> assign(:email_lists, email_lists())
     |> assign(:episode_drafts, episode_drafts())
-    |> assign(:episode_requests, episode_requests())
-    |> assign(:item_drafts, item_drafts(me))
+    |> assign(:episode_requests, episode_requests(EpisodeRequest.limit(5)))
     |> assign(:members, members())
-    |> assign(:podcasts, Cache.podcasts())
-    |> assign(:reach, reach())
+    |> assign(:podcasts, Cache.active_podcasts())
+    |> assign(:downloads, downloads())
     |> render(:index)
   end
 
   def index(conn = %{assigns: %{current_user: %{host: true}}}, _params) do
-    redirect(conn, to: Routes.admin_podcast_path(conn, :index))
+    redirect(conn, to: ~p"/admin/podcasts")
   end
 
   def index(conn = %{assigns: %{current_user: %{editor: true}}}, _params) do
-    redirect(conn, to: Routes.admin_news_item_path(conn, :index))
+    redirect(conn, to: ~p"/admin/news")
+  end
+
+  def fresh_requests(conn, _params) do
+    conn
+    |> assign(:episode_requests, episode_requests())
+    |> render(:fresh_requests)
   end
 
   def purge(conn, _params) do
@@ -43,33 +43,54 @@ defmodule ChangelogWeb.Admin.PageController do
 
     conn
     |> put_flash(:result, "success")
-    |> redirect(to: Routes.admin_page_path(conn, :index))
+    |> redirect(to: ~p"/admin")
   end
 
-  def reach(conn, params) do
+  def downloads(conn, params) do
     podcast = Repo.get_by(Podcast, slug: Map.get(params, "podcast", "nope"))
     range = params |> Map.get("range", "now_7") |> String.to_existing_atom()
-    dates = EpisodeStat.reach_dates(range)
+    dates = EpisodeStat.download_dates(range)
     minimum = Map.get(params, "min", "10") |> String.to_integer()
 
     episodes =
       if podcast do
-        EpisodeStat.date_range_episode_reach(podcast, dates, minimum)
+        EpisodeStat.date_range_episode_downloads(podcast, dates, minimum)
       else
-        EpisodeStat.date_range_episode_reach(dates, minimum)
+        EpisodeStat.date_range_episode_downloads(dates, minimum)
       end
       |> Enum.map(fn stat ->
         Episode
         |> Repo.get(stat.episode_id)
         |> Episode.preload_podcast()
-        |> Map.put(:focused_reach, stat.reach)
+        |> Map.put(:focused, stat.downloads)
       end)
 
     conn
     |> assign(:podcast, podcast)
     |> assign(:dates, dates)
     |> assign(:episodes, episodes)
-    |> render(:reach)
+    |> render(:downloads)
+  end
+
+  defp email_lists do
+    now = Timex.now()
+    today_start = Timex.subtract(now, Timex.Duration.from_days(1))
+    week_start = Timex.subtract(now, Timex.Duration.from_days(7))
+    month_start = Timex.subtract(now, Timex.Duration.from_days(28))
+
+    Enum.map(Cache.active_podcasts(), fn pod ->
+      {
+        pod,
+        {Subscription.subscribed_count(pod, today_start, now),
+         Subscription.unsubscribed_count(pod, today_start, now)},
+        {Subscription.subscribed_count(pod, week_start, now),
+         Subscription.unsubscribed_count(pod, week_start, now)},
+        {Subscription.subscribed_count(pod, month_start, now),
+         Subscription.unsubscribed_count(pod, month_start, now)},
+        Subscription.subscribed_count(pod)
+      }
+    end)
+    |> Enum.sort_by(fn {_pod, _day, _week, {up, _down}, _total} -> up end, :desc)
   end
 
   defp episode_drafts do
@@ -81,19 +102,12 @@ defmodule ChangelogWeb.Admin.PageController do
     |> Repo.all()
   end
 
-  defp episode_requests do
-    EpisodeRequest.fresh()
+  defp episode_requests(query \\ EpisodeRequest) do
+    query
+    |> EpisodeRequest.fresh()
     |> EpisodeRequest.sans_episode()
     |> EpisodeRequest.newest_first()
     |> EpisodeRequest.preload_all()
-    |> Repo.all()
-  end
-
-  defp item_drafts(user) do
-    NewsItem.drafted()
-    |> NewsItem.newest_first(:inserted_at)
-    |> NewsItem.logged_by(user)
-    |> NewsItem.preload_all()
     |> Repo.all()
   end
 
@@ -101,27 +115,29 @@ defmodule ChangelogWeb.Admin.PageController do
     %{
       today: Repo.count(Person.joined_today()),
       slack: Repo.count(Person.in_slack()),
+      zulip: Repo.count(Person.in_zulip()),
+      spam: Repo.count(Person.spammy()),
       total: Repo.count(Person.joined())
     }
   end
 
-  def reach do
+  def downloads do
     now = Timex.today() |> Timex.shift(days: -1)
 
-    Cache.get_or_store("stats-reach-#{now}", fn ->
+    Cache.get_or_store("stats-downloads-#{now}", fn ->
       %{
         as_of: Timex.now(),
-        now_7: EpisodeStat.date_range_reach(:now_7),
-        now_30: EpisodeStat.date_range_reach(:now_30),
-        now_90: EpisodeStat.date_range_reach(:now_90),
-        now_year: EpisodeStat.date_range_reach(:now_year),
-        prev_7: EpisodeStat.date_range_reach(:prev_7),
-        prev_30: EpisodeStat.date_range_reach(:prev_30),
-        prev_90: EpisodeStat.date_range_reach(:prev_90),
-        prev_year: EpisodeStat.date_range_reach(:prev_year),
-        then_7: EpisodeStat.date_range_reach(:then_7),
-        then_30: EpisodeStat.date_range_reach(:then_30),
-        then_90: EpisodeStat.date_range_reach(:then_90)
+        now_7: EpisodeStat.date_range_downloads(:now_7),
+        now_30: EpisodeStat.date_range_downloads(:now_30),
+        now_90: EpisodeStat.date_range_downloads(:now_90),
+        now_year: EpisodeStat.date_range_downloads(:now_year),
+        prev_7: EpisodeStat.date_range_downloads(:prev_7),
+        prev_30: EpisodeStat.date_range_downloads(:prev_30),
+        prev_90: EpisodeStat.date_range_downloads(:prev_90),
+        prev_year: EpisodeStat.date_range_downloads(:prev_year),
+        then_7: EpisodeStat.date_range_downloads(:then_7),
+        then_30: EpisodeStat.date_range_downloads(:then_30),
+        then_90: EpisodeStat.date_range_downloads(:then_90)
       }
     end)
   end

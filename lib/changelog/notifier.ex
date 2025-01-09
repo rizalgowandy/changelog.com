@@ -1,7 +1,7 @@
 defmodule Changelog.Notifier do
   alias Changelog.{
     Episode,
-    Mailer,
+    EpisodeRequest,
     NewsItem,
     NewsItemComment,
     Person,
@@ -9,10 +9,10 @@ defmodule Changelog.Notifier do
     Repo,
     Subscription,
     Slack,
-    EpisodeRequest
+    StringKit
   }
 
-  alias ChangelogWeb.Email
+  alias Changelog.ObanWorkers.{MailDeliverer, SocialPoster}
 
   def notify(%NewsItem{feed_only: true}), do: false
 
@@ -23,14 +23,23 @@ defmodule Changelog.Notifier do
       |> Map.get(:object)
       |> Episode.preload_all()
 
+    SocialPoster.queue(episode)
+
     deliver_episode_guest_thanks_emails(episode)
     deliver_episode_request_email(episode)
     deliver_podcast_subscription_emails(episode)
-    deliver_slack_new_episode_message(episode, item.url)
+  end
+
+  def notify(item = %NewsItem{status: :accepted}) do
+    if StringKit.present?(item.message) do
+      item
+      |> NewsItem.preload_all()
+      |> deliver_submitter_accepted_email()
+    end
   end
 
   def notify(item = %NewsItem{status: :declined}) do
-    if item.decline_message && item.decline_message != "" do
+    if StringKit.present?(item.message) do
       item
       |> NewsItem.preload_all()
       |> deliver_submitter_decline_email()
@@ -40,6 +49,11 @@ defmodule Changelog.Notifier do
   def notify(item = %NewsItem{}) do
     item = NewsItem.preload_all(item)
 
+    if NewsItem.is_post(item) do
+      post = item |> NewsItem.load_object() |> Map.get(:object)
+      deliver_slack_new_post_message(post)
+    end
+
     if item.submitter == item.author do
       deliver_submitter_email(item.submitter, item)
     else
@@ -48,12 +62,19 @@ defmodule Changelog.Notifier do
     end
   end
 
-  def notify(request = %EpisodeRequest{status: :declined, decline_message: message})
-      when is_binary(message) do
-    if message != "" do
+  def notify(request = %EpisodeRequest{status: :declined}) do
+    if StringKit.present?(request.message) do
       request
       |> EpisodeRequest.preload_all()
       |> deliver_request_decline_email()
+    end
+  end
+
+  def notify(request = %EpisodeRequest{status: :failed}) do
+    if StringKit.present?(request.message) do
+      request
+      |> EpisodeRequest.preload_all()
+      |> deliver_request_fail_email()
     end
   end
 
@@ -64,7 +85,7 @@ defmodule Changelog.Notifier do
     moderators = ~w(jerod@changelog.com)
 
     for person <- moderators |> Person.with_email() |> Repo.all() do
-      person |> Email.comment_approval(comment) |> Mailer.deliver_later()
+      MailDeliverer.queue("comment_approval", %{"person" => person.id, "comment" => comment.id})
     end
   end
 
@@ -84,9 +105,7 @@ defmodule Changelog.Notifier do
       Subscription.is_unsubscribed(person, comment.news_item)
     end)
     |> Enum.each(fn {_person, recipient, mailer} ->
-      Email
-      |> apply(mailer, [recipient, comment])
-      |> Mailer.deliver_later()
+      MailDeliverer.queue(mailer, %{"person" => recipient.id, "comment" => comment.id})
     end)
   end
 
@@ -96,6 +115,17 @@ defmodule Changelog.Notifier do
 
     for person <- interested |> Person.with_email() |> Repo.all() do
       deliver_episode_transcribed_email(person, episode)
+    end
+
+    subs =
+      episode
+      |> Subscription.on_episode()
+      |> Subscription.subscribed()
+      |> Subscription.preload_person()
+      |> Repo.all()
+
+    for sub <- subs do
+      deliver_episode_transcribed_email(sub.person, episode)
     end
   end
 
@@ -137,17 +167,13 @@ defmodule Changelog.Notifier do
 
   defp deliver_author_email(person, item) do
     if person.settings.email_on_authored_news do
-      item
-      |> Email.authored_news_published()
-      |> Mailer.deliver_later()
+      MailDeliverer.queue("authored_news_published", %{"item" => item.id})
     end
   end
 
   defp deliver_episode_guest_thanks_emails(episode) do
     for eg <- Enum.filter(episode.episode_guests, & &1.thanks) do
-      eg
-      |> Email.guest_thanks()
-      |> Mailer.deliver_later()
+      MailDeliverer.queue("guest_thanks", %{"episode_guest" => eg.id})
     end
   end
 
@@ -157,24 +183,24 @@ defmodule Changelog.Notifier do
     request = EpisodeRequest.preload_submitter(request)
 
     if !Enum.member?(guests, request.submitter) do
-      request
-      |> Email.episode_request_published()
-      |> Mailer.deliver_later()
+      MailDeliverer.queue("episode_request_published", %{"request" => request.id})
     end
   end
 
   defp deliver_episode_transcribed_email(person, episode) do
-    person |> Email.episode_transcribed(episode) |> Mailer.deliver_later()
+    MailDeliverer.queue("episode_transcribed", %{"person" => person.id, "episode" => episode.id})
   end
 
   defp deliver_podcast_subscription_emails(episode) do
     podcast = Podcast.preload_subscriptions(episode.podcast)
 
     for subscription <- podcast.subscriptions do
-      subscription
-      |> Subscription.preload_all()
-      |> Email.episode_published(episode)
-      |> Mailer.deliver_later()
+      MailDeliverer.queue("episode_published", %{
+        "subscription" => subscription.id,
+        "episode" => episode.id,
+        # lower than default priority (0) so transactionals send first
+        "priority" => 1
+      })
     end
   end
 
@@ -183,8 +209,8 @@ defmodule Changelog.Notifier do
     Slack.Client.message("#news-comments", message)
   end
 
-  defp deliver_slack_new_episode_message(episode, url) do
-    message = Slack.Messages.new_episode(episode, url)
+  defp deliver_slack_new_post_message(post) do
+    message = Slack.Messages.new_post(post)
     Slack.Client.message("#main", message)
   end
 
@@ -192,21 +218,23 @@ defmodule Changelog.Notifier do
 
   defp deliver_submitter_email(person, item) do
     if person.settings.email_on_submitted_news do
-      item
-      |> Email.submitted_news_published()
-      |> Mailer.deliver_later()
+      MailDeliverer.queue("submitted_news_published", %{"item" => item.id})
     end
   end
 
+  defp deliver_submitter_accepted_email(item) do
+    MailDeliverer.queue("submitted_news_accepted", %{"item" => item.id})
+  end
+
   defp deliver_submitter_decline_email(item) do
-    item
-    |> Email.submitted_news_declined()
-    |> Mailer.deliver_later()
+    MailDeliverer.queue("submitted_news_declined", %{"item" => item.id})
   end
 
   defp deliver_request_decline_email(request) do
-    request
-    |> Email.episode_request_declined()
-    |> Mailer.deliver_later()
+    MailDeliverer.queue("episode_request_declined", %{"request" => request.id})
+  end
+
+  defp deliver_request_fail_email(request) do
+    MailDeliverer.queue("episode_request_failed", %{"request" => request.id})
   end
 end

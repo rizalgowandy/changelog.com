@@ -16,6 +16,8 @@ defmodule ChangelogWeb.TimeView do
     Timex.shift(date, days: offset)
   end
 
+  def duration(seconds) when is_float(seconds), do: seconds |> round() |> duration()
+
   def duration(seconds) when is_nil(seconds), do: duration(0)
 
   def duration(seconds) when seconds < 3600 do
@@ -50,6 +52,8 @@ defmodule ChangelogWeb.TimeView do
     Timex.add(Timex.now(), Duration.from_hours(hours))
   end
 
+  def iso_8601(ts), do: ts |> format_to("{ISO:Extended:Z}")
+
   def pretty_date(ts) when is_nil(ts), do: ""
 
   def pretty_date(ts) when is_binary(ts) do
@@ -65,7 +69,7 @@ defmodule ChangelogWeb.TimeView do
   def rounded_minutes(seconds) when is_nil(seconds), do: rounded_minutes(0)
 
   def rounded_minutes(seconds) do
-    (seconds / 60) |> round
+    (seconds / 60) |> round()
   end
 
   def rss(ts) when is_nil(ts), do: ""
@@ -108,7 +112,7 @@ defmodule ChangelogWeb.TimeView do
   def ts(ts, _style) when is_nil(ts), do: ""
 
   def ts(ts, style) do
-    {:ok, formatted} = Timex.format(ts, "{ISO:Extended:Z}")
+    formatted = iso_8601(ts)
     {:safe, "<span class='time' data-style='#{style}'>#{formatted}</span>"}
   end
 

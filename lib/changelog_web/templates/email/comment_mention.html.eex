@@ -10,10 +10,10 @@
       <%= link("Reply here", to: comment_url(@item, @comment), itemprop: "url") %>
     </span>
 
-    <p>Seen enough? <%= link("Mute this discussion", to: PersonView.opt_out_url(Endpoint, @person, "news", @item.id)) %> or <%= link("disable mention notifications", to: PersonView.opt_out_url(Endpoint, @person, "setting", "email_on_comment_mentions")) %> all together.</p>
+    <p>Seen enough? <%= link("Mute this discussion", to: PersonView.opt_out_url(@person, "news", @item.id)) %> or <%= link("disable mention notifications", to: PersonView.opt_out_url(@person, "setting", "email_on_comment_mentions")) %> all together.</p>
 
     <p>💚, Logbot</p>
 
-    <p class="footnote">(You received this email because you have mention notifications enabled on changelog.com)</p>
+    <p class="footnote">(You received this because you have mention notifications enabled on changelog.com)</p>
   </td>
 </tr>

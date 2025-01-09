@@ -1,27 +1,31 @@
 defmodule Changelog.Slack.Messages do
-  alias ChangelogWeb.{NewsItemView, EpisodeView}
+  alias ChangelogWeb.{NewsItemView, EpisodeView, PostView}
 
   def new_comment(comment) do
     ~s"""
-    New comment by *#{comment.author.name}* on _#{comment.news_item.headline}_ https://changelog.com/news/#{
-      NewsItemView.hashid(comment.news_item)
-    }
+    New comment by *#{comment.author.name}* on _#{comment.news_item.headline}_ https://changelog.com/news/#{NewsItemView.hashid(comment.news_item)}
     """
   end
 
-  def new_episode(episode, url) do
+  def new_episode(episode) do
     ~s"""
-    #{EpisodeView.title_with_podcast_aside(episode)} #{celebrate_emoji()} #{url}
+    #{EpisodeView.title_with_podcast_aside(episode)} #{celebrate_emoji()} #{EpisodeView.share_url(episode)}
+    """
+  end
+
+  def new_post(post) do
+    ~s"""
+    #{post.title} #{celebrate_emoji()} #{PostView.url(post)}
     """
   end
 
   def welcome do
     ~s"""
-    Welcome to Changelog's Community Slack team! :clap:
+    Welcome to Changelog's Community Slack! :clap:
 
     This is an inclusive place where we chat about tech, life, our shows, or just whatever. *There are no imposters here*. By hanging out in this Slack, you are agreeing to abide by our Code of Conduct: https://changelog.com/coc
 
-    You are welcome to join any channel. Each podcast has one (<#C1YNE3WUX|jsparty>, <#CAACWA9FE|practicalai>, <#CHXMLR887|brainscience>) and some are used for internal Changelog stuff (<#C03SA8VE2|dev>). Feel free to explore!
+    You are welcome to join any channel. Each podcast has one (<#C1YNE3WUX|jsparty>, <#CAACWA9FE|practicalai>, <#C02308JMSFM|shipit>) and some are used for internal Changelog stuff (<#C03SA8VE2|dev>). Feel free to explore!
 
     When you get a moment, please introduce yourself in <#C024Q4CER|main>. Tell us where you're from, what you're up to, how you found this community, why you joined, and/or anything else about yourself you'd like us to know!
 
@@ -34,5 +38,5 @@ defmodule Changelog.Slack.Messages do
   end
 
   defp celebrate_emoji,
-    do: ~w(:tada: :gift: :muscle: :raised_hands: :parrot: :dancer:) |> Enum.random()
+    do: ~w(:tada: :gift: :muscle: :raised_hands: :partying_face: :dancer:) |> Enum.random()
 end

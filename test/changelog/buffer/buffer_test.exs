@@ -49,6 +49,21 @@ defmodule Changelog.Buffer.BufferTest do
       end
     end
 
+    test "is a no-op when sent News episode" do
+      news = insert(:podcast, slug: "news")
+      episode = insert(:episode, podcast: news)
+      item = %NewsItem{type: :audio, object_id: Episode.object_id(episode)}
+
+      with_mocks([
+        {Buffer.Content, [], [episode_text: fn _ -> "text" end]},
+        {Buffer.Content, [], [episode_link: fn _ -> "url1" end]},
+        {Buffer.Client, [], [create: fn _, _, _ -> true end]}
+      ]) do
+        Buffer.queue(item)
+        assert called(Buffer.Client.create(nil, "text", link: "url1"))
+      end
+    end
+
     test "is a no-op when sent other audio news item" do
       item = %NewsItem{type: :audio}
 
@@ -60,7 +75,7 @@ defmodule Changelog.Buffer.BufferTest do
 
     test "calls post functions and Client.create when news item with post object" do
       insert(:published_post, slug: "this-is-one")
-      item = %NewsItem{type: :link, object_id: "posts:this-is-one"}
+      item = %NewsItem{type: :post, object_id: "posts:this-is-one"}
 
       with_mocks([
         {Buffer.Content, [], [post_brief: fn _ -> "brief" end]},

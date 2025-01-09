@@ -79,8 +79,8 @@ input[type=file] {
   text-align: right;
 }
 
-.hidden.field, tr.hidden {
-  display: none;
+.hidden {
+  display: none !important;
 }
 
 .chart {

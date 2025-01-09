@@ -1,4 +1,7 @@
 defmodule ChangelogWeb do
+  def static_paths, do: ~w(css fonts images js android-chrome apple-touch
+    browserconfig favicon manifest mstile robots safari-pinned-tab)
+
   def controller do
     quote do
       use Phoenix.Controller, namespace: ChangelogWeb
@@ -7,6 +10,7 @@ defmodule ChangelogWeb do
 
       alias Changelog.{Policies, Repo}
       alias ChangelogWeb.Plug.{Authorize, RequireUser, RequireGuest}
+      alias ChangelogWeb.Helpers.{SharedHelpers}
 
       import Ecto
       import Ecto.Query
@@ -20,6 +24,12 @@ defmodule ChangelogWeb do
           |> inspect()
 
         Logger.info("#{prefix}: #{conn.method} /#{conn.path_info} #{details}")
+      end
+
+      def send_to_sentry(event_name, info) when is_map(info) do
+        if Mix.env() == :prod do
+          Sentry.capture_message(event_name, extra: info)
+        end
       end
 
       @doc """
@@ -44,6 +54,8 @@ defmodule ChangelogWeb do
 
       defp is_admin?(user = %Changelog.Person{}), do: user.admin
       defp is_admin?(_), do: false
+
+      unquote(verified_routes())
     end
   end
 
@@ -51,12 +63,37 @@ defmodule ChangelogWeb do
     quote do
       use Phoenix.View, root: "lib/changelog_web/templates", namespace: ChangelogWeb
       use Phoenix.HTML
+
       import Phoenix.Controller, only: [get_flash: 1, get_flash: 2, view_module: 1]
-      import Scrivener.HTML
+
       alias ChangelogWeb.Router.Helpers, as: Routes
       alias ChangelogWeb.Helpers.{AdminHelpers, SharedHelpers}
       alias Changelog.Policies
       alias ChangelogWeb.TimeView
+
+      unquote(verified_routes())
+    end
+  end
+
+  def live_view do
+    quote do
+      use Phoenix.LiveView,
+        layout: {ChangelogWeb.LayoutView, :live}
+
+      unquote(html_helpers())
+    end
+  end
+
+  defp html_helpers do
+    quote do
+      # HTML escaping functionality
+      import Phoenix.HTML
+      # Core UI components and translation
+      import HelloWeb.CoreComponents
+      import HelloWeb.Gettext
+
+      # Shortcut for generating JS commands
+      alias Phoenix.LiveView.JS
     end
   end
 
@@ -69,6 +106,7 @@ defmodule ChangelogWeb do
 
       use Phoenix.HTML
 
+      import Phoenix.Component
       import Phoenix.Controller,
         only: [current_url: 1, get_flash: 1, get_flash: 2, view_module: 1]
 
@@ -80,12 +118,16 @@ defmodule ChangelogWeb do
       alias ChangelogWeb.Helpers.{PublicHelpers, SharedHelpers}
       alias Changelog.Policies
       alias ChangelogWeb.{SharedView, TimeView}
+
+      unquote(verified_routes())
     end
   end
 
   def router do
     quote do
       use Phoenix.Router
+
+      import Phoenix.LiveView.Router
     end
   end
 
@@ -96,6 +138,15 @@ defmodule ChangelogWeb do
       alias Changelog.Repo
       import Ecto
       import Ecto.Query, only: [from: 1, from: 2]
+    end
+  end
+
+  def verified_routes do
+    quote do
+      use Phoenix.VerifiedRoutes,
+        endpoint: ChangelogWeb.Endpoint,
+        router: ChangelogWeb.Router,
+        statics: ChangelogWeb.static_paths()
     end
   end
 

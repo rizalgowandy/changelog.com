@@ -20,7 +20,9 @@ defmodule Changelog.EpisodeGuestTest do
   describe "thanks/1" do
     test "generates and saves a discount code for later use" do
       with_mock(Merch, create_discount: fn _, _ -> {:ok, %{code: "hai"}} end) do
-        eg = insert(:episode_guest)
+        podcast = insert(:podcast, slug: "news")
+        episode = insert(:episode, podcast: podcast)
+        eg = insert(:episode_guest, episode: episode)
         {:ok, eg} = EpisodeGuest.thanks(eg)
         assert eg.thanks
         assert eg.discount_code == "hai"

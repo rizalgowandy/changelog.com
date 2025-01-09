@@ -1,18 +1,22 @@
 defmodule Changelog.Person do
+  alias Changelog.Membership
   use Changelog.Schema
 
   alias Changelog.{
     Episode,
-    EpisodeHost,
     EpisodeGuest,
+    EpisodeHost,
     EpisodeRequest,
     Faker,
+    Feed,
     Files,
+    Membership,
     NewsItem,
     NewsItemComment,
     PodcastHost,
     Post,
     Regexp,
+    SponsorRep,
     Subscription
   }
 
@@ -48,8 +52,11 @@ defmodule Changelog.Person do
     field :handle, :string
     field :github_handle, :string
     field :linkedin_handle, :string
+    field :mastodon_handle, :string
     field :twitter_handle, :string
+    field :bsky_handle, :string
     field :slack_id, :string
+    field :zulip_id, :string
     field :website, :string
     field :bio, :string
     field :location, :string
@@ -68,18 +75,31 @@ defmodule Changelog.Person do
 
     embeds_one :settings, Settings, on_replace: :update
 
-    has_many :podcast_hosts, PodcastHost, on_delete: :delete_all
-    has_many :episode_hosts, EpisodeHost, on_delete: :delete_all
-    has_many :episode_requests, EpisodeRequest, foreign_key: :submitter_id
+    has_many :memberships, Membership
+    has_one :active_membership, Membership, where: [status: {:in, Membership.active_statuses()}]
+
+    has_many :podcast_hosts, PodcastHost
+
+    has_many :episode_hosts, EpisodeHost
     has_many :host_episodes, through: [:episode_hosts, :episode]
-    has_many :episode_guests, EpisodeGuest, on_delete: :delete_all
+
+    has_many :episode_guests, EpisodeGuest
     has_many :guest_episodes, through: [:episode_guests, :episode]
-    has_many :authored_posts, Post, foreign_key: :author_id, on_delete: :delete_all
-    has_many :authored_news_items, NewsItem, foreign_key: :author_id
-    has_many :logged_news_items, NewsItem, foreign_key: :logger_id
-    has_many :submitted_news_items, NewsItem, foreign_key: :submitter_id
+
+    has_many :authored_posts, Post, foreign_key: :author_id
+
+    has_many :sponsor_reps, SponsorRep
+    has_many :sponsors, through: [:sponsor_reps, :sponsor]
+
+    has_many :authored_news_items, NewsItem, foreign_key: :author_id, on_delete: :nilify_all
+    has_many :logged_news_items, NewsItem, foreign_key: :logger_id, on_delete: :nilify_all
+    has_many :submitted_news_items, NewsItem, foreign_key: :submitter_id, on_delete: :nilify_all
+
     has_many :comments, NewsItemComment, foreign_key: :author_id
     has_many :subscriptions, Subscription, where: [unsubscribed_at: nil]
+    has_many :episode_requests, EpisodeRequest, foreign_key: :submitter_id
+
+    has_many :feeds, Feed, foreign_key: :owner_id
 
     timestamps()
   end
@@ -92,6 +112,7 @@ defmodule Changelog.Person do
     from(q in query, where: not is_nil(q.bio) or not is_nil(q.website))
     |> joined()
     |> not_in_slack()
+    |> no_requests()
     |> no_subs()
     |> not_a_guest()
   end
@@ -99,26 +120,47 @@ defmodule Changelog.Person do
   def in_slack(query \\ __MODULE__), do: from(q in query, where: not is_nil(q.slack_id))
   def not_in_slack(query \\ __MODULE__), do: from(q in query, where: is_nil(q.slack_id))
 
+  def in_zulip(query \\ __MODULE__), do: from(q in query, where: not is_nil(q.zulip_id))
+  def not_in_zulip(query \\ __MODULE__), do: from(q in query, where: is_nil(q.zulip_id))
+
   def joined(query \\ __MODULE__), do: from(a in query, where: not is_nil(a.joined_at))
+  def never_confirmed(query \\ __MODULE__), do: from(q in query, where: is_nil(q.joined_at))
   def never_signed_in(query \\ __MODULE__), do: from(q in query, where: is_nil(q.signed_in_at))
 
+  def needs_confirmation(query \\ __MODULE__) do
+    query
+    |> not_an_author()
+    |> not_a_host()
+    |> not_a_guest()
+    |> no_public_profile()
+    |> never_confirmed()
+  end
+
+  def not_an_author(query \\ __MODULE__) do
+    from(q in query, left_join: p in assoc(q, :authored_posts), where: is_nil(p.id))
+  end
+
   def not_a_guest(query \\ __MODULE__) do
-    from(q in query,
-      left_join: g in EpisodeGuest,
-      on: [person_id: q.id],
-      where: is_nil(g.id)
-    )
+    from(q in query, left_join: g in assoc(q, :episode_guests), where: is_nil(g.id))
+  end
+
+  def not_a_host(query \\ __MODULE__) do
+    from(q in query, left_join: h in assoc(q, :episode_hosts), where: is_nil(h.id))
+  end
+
+  def no_requests(query \\ __MODULE__) do
+    from(q in query, left_join: r in assoc(q, :episode_requests), where: is_nil(r.id))
   end
 
   def no_subs(query \\ __MODULE__) do
-    from(q in query,
-      left_join: s in Subscription,
-      on: [person_id: q.id],
-      where: is_nil(s.id)
-    )
+    from(q in query, left_join: s in assoc(q, :subscriptions), where: is_nil(s.id))
   end
 
+  def no_public_profile(query \\ __MODULE__), do: from(q in query, where: not q.public_profile)
+
   def faked(query \\ __MODULE__), do: from(q in query, where: q.name in ^Changelog.Faker.names())
+
+  def with_avatar(query \\ __MODULE__), do: from(q in query, where: not is_nil(q.avatar))
 
   def with_handles(query \\ __MODULE__, handles),
     do: from(q in query, where: q.handle in ^handles)
@@ -137,14 +179,14 @@ defmodule Changelog.Person do
 
   def get_by_encoded_auth(token) do
     case __MODULE__.decoded_data(token) do
-      [email, auth_token] -> Repo.get_by(__MODULE__, email: email, auth_token: auth_token)
+      {:ok, [email, auth_token]} -> Repo.get_by(__MODULE__, email: email, auth_token: auth_token)
       _else -> nil
     end
   end
 
   def get_by_encoded_id(token) do
     case __MODULE__.decoded_data(token) do
-      [id, email] -> Repo.get_by(__MODULE__, id: id, email: email)
+      {:ok, [id, email]} -> Repo.get_by(__MODULE__, id: id, email: email)
       _else -> nil
     end
   end
@@ -173,8 +215,9 @@ defmodule Changelog.Person do
     do: cast(person, attrs, ~w(auth_token auth_token_expires_at)a)
 
   def admin_insert_changeset(person, attrs \\ %{}) do
-    allowed =
-      ~w(name email handle github_handle linkedin_handle twitter_handle bio website location admin host editor public_profile approved)a
+    allowed = ~w(name email handle github_handle linkedin_handle mastodon_handle
+      twitter_handle bsky_handle bio website location admin host editor
+      public_profile approved)a
 
     changeset_with_allowed_attrs(person, attrs, allowed)
   end
@@ -189,8 +232,8 @@ defmodule Changelog.Person do
     do: cast_attachments(person, attrs, [:avatar], allow_urls: true)
 
   def insert_changeset(person, attrs \\ %{}) do
-    allowed =
-      ~w(name email handle github_handle linkedin_handle twitter_handle bio website location public_profile)a
+    allowed = ~w(name email handle github_handle linkedin_handle mastodon_handle
+      twitter_handle bsky_handle bio website location public_profile)a
 
     changeset_with_allowed_attrs(person, attrs, allowed)
   end
@@ -214,19 +257,22 @@ defmodule Changelog.Person do
     |> cast(attrs, allowed)
     |> cast_embed(:settings)
     |> validate_required([:name, :email, :handle])
-    |> validate_format(:email, Regexp.email())
+    |> validate_format(:email, Regexp.email(), message: Regexp.email_message())
     |> validate_format(:website, Regexp.http(), message: Regexp.http_message())
     |> validate_format(:handle, Regexp.slug(), message: Regexp.slug_message())
     |> validate_length(:handle, max: 40, message: "max 40 chars")
     |> validate_format(:github_handle, Regexp.social(), message: Regexp.social_message())
     |> validate_format(:linkedin_handle, Regexp.social(), message: Regexp.social_message())
+    |> validate_format(:mastodon_handle, Regexp.email(), message: Regexp.email_message())
     |> validate_format(:twitter_handle, Regexp.social(), message: Regexp.social_message())
     |> validate_handle_allowed()
     |> unique_constraint(:email)
     |> unique_constraint(:handle)
     |> unique_constraint(:github_handle)
     |> unique_constraint(:linkedin_handle)
+    |> unique_constraint(:mastodon_handle)
     |> unique_constraint(:twitter_handle)
+    |> unique_constraint(:bsky_handle)
   end
 
   defp validate_handle_allowed(changeset) do
@@ -248,10 +294,6 @@ defmodule Changelog.Person do
     })
   end
 
-  def slack_changes(person, slack_id) do
-    change(person, %{slack_id: slack_id})
-  end
-
   def refresh_auth_token(person, expires_in \\ 60 * 24) do
     auth_token = Base.encode16(:crypto.strong_rand_bytes(8))
     expires_at = Timex.add(Timex.now(), Timex.Duration.from_minutes(expires_in))
@@ -268,8 +310,8 @@ defmodule Changelog.Person do
 
   def decoded_data(encoded) do
     case Base.decode16(encoded) do
-      {:ok, decoded} -> String.split(decoded, "|")
-      :error -> ["", ""]
+      {:ok, decoded} -> {:ok, String.split(decoded, "|")}
+      :error -> {:error, ["", ""]}
     end
   end
 
@@ -312,8 +354,8 @@ defmodule Changelog.Person do
   end
 
   def podcast_subscription_count(person) do
-    Subscription
-    |> Subscription.for_person(person)
+    person
+    |> assoc(:subscriptions)
     |> Subscription.to_podcast()
     |> Repo.count()
   end

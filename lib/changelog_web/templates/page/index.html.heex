@@ -1,0 +1,27 @@
+<%= render(ChangelogWeb.PodcastView, "_index_active.html", assigns) %>
+
+<div class="show">
+  <a id="recent" class="anchor"></a>
+  <div class="feed">
+    <nav class="subnav">
+      <ul class="subnav-list">
+        <li class="subnav-list-item">
+          <%= link("Recent Episodes", to: "#recent", title: "Recent episodes from all Changelog podcasts") %>
+        </li>
+
+        <li class="subnav-list-item subnav-list-item--right">
+          <%= link("🙏 Request!", to: ~p"/request", title: "Request an episode") %>
+        </li>
+      </ul>
+    </nav>
+
+
+  <%= if Enum.any?(@page.entries) do %>
+    <%= render_many(@page, EpisodeView, "_item.html") %>
+
+    <nav class="load_more" aria-label="Pagination">
+      <%= link("View All", to: ~p"/master", class: "load_more-button") %>
+    </nav>
+  <% end %>
+  </div>
+</div>

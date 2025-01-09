@@ -1,0 +1,110 @@
+<div class="ui basic segment">
+  <%= render(EpisodeView, "_downloads.html", assigns) %>
+</div>
+
+<div class="ui basic segment">
+  <div class="ui centered stackable grid">
+    <div class="ui twelve wide column">
+      <h1 class="ui header">Subscribers</h1>
+      <table class="ui striped table">
+        <thead>
+          <tr>
+            <th>List</th>
+            <th>Today</th>
+            <th>This Week</th>
+            <th>This Month <i class="caret up icon"></i></th>
+            <th>Total Email</th>
+            <th>Total RSS</th>
+          </tr>
+        </thead>
+        <tbody>
+        <%= for {podcast, day, week, month, total} <- @email_lists do %>
+          <tr>
+            <td><%= link(podcast.name, to: ~p"/admin/podcasts/#{podcast.slug}/episodes") %></td>
+          <%= for {up, down} <- [day, week, month] do %>
+            <td><%= AdminHelpers.diff_label(up, down) %></td>
+          <% end %>
+            <td><%= link(SharedHelpers.comma_separated(total), to: Routes.admin_podcast_subscription_path(@conn, :index, podcast.slug)) %></td>
+            <td><%= podcast |> PodcastView.subscribers_count() |> SharedHelpers.comma_separated() %></td>
+          </tr>
+        <% end %>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="ui four wide column">
+      <h1 class="ui header">People</h1>
+      <table class="ui celled table">
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th class="center aligned">
+              <div class="ui basic buttons">
+                <%= AdminHelpers.icon_link("plus", to: Routes.admin_person_path(@conn, :new), title: "New Person") %>
+              </div>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>New members today</td>
+            <td><%= @members[:today] |> SharedHelpers.comma_separated() %></td>
+          </tr>
+          <tr>
+            <td>Members in Slack</td>
+            <td><%= @members[:slack] |> SharedHelpers.comma_separated() %></td>
+          </tr>
+          <tr>
+            <td>Members in Zulip</td>
+            <td><%= @members[:zulip] |> SharedHelpers.comma_separated() %></td>
+          </tr>
+          <tr>
+            <td>Total members</td>
+            <td><%= @members[:total] |> SharedHelpers.comma_separated() %></td>
+          </tr>
+          <tr>
+            <td>Spammy members</td>
+            <td><%= @members[:spam] |> SharedHelpers.comma_separated() %></td>
+          </tr>
+          <tr>
+            <td>Total people</td>
+            <td><%= Changelog.Person |> Repo.count() |> SharedHelpers.comma_separated() %></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<%= if Enum.any?(@episode_drafts) do %>
+<div class="ui basic segment">
+  <h1 class="ui header">Episode drafts (next up)</h1>
+  <%= render(EpisodeView, "_table.html", Map.merge(assigns, %{episodes: @episode_drafts, status: :draft})) %>
+</div>
+<% end %>
+
+<%= if Enum.any?(@episode_requests) do %>
+<div class="ui basic segment">
+  <h1 class="ui header">Recent requests <%= link("(view all)", to: Routes.admin_page_path(@conn, :fresh_requests)) %></h1>
+  <%= render(EpisodeRequestView, "_table.html", Map.merge(assigns, %{requests: @episode_requests, status: :fresh})) %>
+</div>
+<% end %>
+
+<div class="ui basic segment">
+  <div class="ui centered grid">
+    <div class="ui statistics">
+      <div class="statistic">
+        <div class="label">Elixir</div>
+        <div class="value"><%= Changelog.Vitals.elixir_version() %></div>
+      </div>
+      <div class="statistic">
+        <div class="label">Erlang</div>
+        <div class="value"><%= Changelog.Vitals.erlang_version() %></div>
+      </div>
+      <div class="statistic">
+        <div class="label">Postgres</div>
+        <div class="value"><%= Changelog.Vitals.postgres_version() %></div>
+      </div>
+    </div>
+  </div>
+</div>

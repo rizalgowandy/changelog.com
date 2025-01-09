@@ -1,11 +1,18 @@
 defmodule Changelog.Factory do
   use ExMachina.Ecto, repo: Changelog.Repo
 
-  def benefit_factory do
-    %Changelog.Benefit{
-      offer: "Free stuff!",
-      sponsor: build(:sponsor),
-      link_url: "https://benefits.com"
+  def feed_factory do
+    %Changelog.Feed{
+      name: "My Private Feed",
+      slug: sequence(:slug, &"feed#{&1}"),
+      owner: build(:person)
+    }
+  end
+
+  def feed_stat_factory do
+    %Changelog.FeedStat{
+      date: Timex.today(),
+      agents: %{}
     }
   end
 
@@ -21,7 +28,18 @@ defmodule Changelog.Factory do
       title: sequence(:title, &"Best Show Evar! #{&1}"),
       slug: sequence(:slug, &"best-show-evar-#{&1}"),
       audio_bytes: 42,
+      audio_chapters: [
+        build(:episode_chapter, title: "Intro", starts_at: 0, ends_at: 30),
+        build(:episode_chapter, title: "Oh & my", starts_at: 31, ends_at: 45)
+      ],
       podcast: build(:podcast)
+    }
+  end
+
+  def episode_chapter_factory do
+    %Changelog.EpisodeChapter{
+      title: sequence(:title, &"Chapter #{&1}"),
+      starts_at: 0.0
     }
   end
 
@@ -92,12 +110,6 @@ defmodule Changelog.Factory do
 
   def scheduled_episode_factory do
     %Changelog.Episode{episode_factory() | published: true, published_at: hours_from_now(1)}
-  end
-
-  def metacast_factory do
-    %Changelog.Metacast{
-      name: sequence(:name, &"Metacast #{&1}")
-    }
   end
 
   def news_ad_factory do
@@ -174,7 +186,8 @@ defmodule Changelog.Factory do
 
     %{
       published_news_item_factory()
-      | headline: post.title,
+      | type: :post,
+        headline: post.title,
         url: "https://changelog.com/posts/#{post.slug}",
         object_id: object_id
     }
@@ -239,11 +252,33 @@ defmodule Changelog.Factory do
     }
   end
 
+  def member_factory do
+    %Changelog.Person{
+      person_factory()
+      | active_membership: build(:membership)
+    }
+  end
+
+  def membership_factory do
+    %Changelog.Membership{
+      status: "active",
+      started_at: hours_ago(1),
+      subscription_id: sequence(:subscription_id, &"member-#{&1}")
+    }
+  end
+
   def podcast_factory do
     %Changelog.Podcast{
       name: sequence(:name, &"Show #{&1}"),
       slug: sequence(:slug, &"show-#{&1}"),
-      status: :published
+      status: :publishing
+    }
+  end
+
+  def live_podcast_factory do
+    %Changelog.Podcast{
+      podcast_factory()
+      | riverside_url: "https://riverside.fm/studio/livepod?t=123"
     }
   end
 
@@ -267,17 +302,29 @@ defmodule Changelog.Factory do
   end
 
   def published_post_factory do
-    %Changelog.Post{post_factory() | published: true, published_at: hours_ago(1)}
+    %Changelog.Post{publishable_post_factory() | published: true, published_at: hours_ago(1)}
   end
 
   def scheduled_post_factory do
-    %Changelog.Post{post_factory() | published: true, published_at: hours_from_now(1)}
+    %Changelog.Post{publishable_post_factory() | published: true, published_at: hours_from_now(1)}
   end
 
   def sponsor_factory do
     %Changelog.Sponsor{
       name: sequence(:name, &"Sponsor #{&1}")
     }
+  end
+
+  def subscription_on_episode_factory do
+    %Changelog.Subscription{
+      person: build(:person),
+      episode: build(:episode),
+      context: "you got it from a factory"
+    }
+  end
+
+  def unsubscribed_subscription_on_episode_factory do
+    %Changelog.Subscription{subscription_on_episode_factory() | unsubscribed_at: hours_ago(24)}
   end
 
   def subscription_on_item_factory do

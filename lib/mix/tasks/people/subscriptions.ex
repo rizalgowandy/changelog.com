@@ -5,6 +5,8 @@ defmodule Mix.Tasks.Changelog.Subscriptions do
   alias ChangelogWeb.PersonView
   alias NimbleCSV.RFC4180, as: CSV
 
+  require Logger
+
   @shortdoc "Imports people and subscriptions from CSV"
 
   def run([import_file]),
@@ -19,15 +21,23 @@ defmodule Mix.Tasks.Changelog.Subscriptions do
       |> String.replace_trailing(".csv", "")
       |> Podcast.get_by_slug!()
 
+    Logger.info(
+      "Prior to run: #{podcast.name} has #{Podcast.subscription_count(podcast)} subscribers. #{Repo.count(Person)} total people."
+    )
+
     import_file
     |> File.read!()
     |> CSV.parse_string()
-    |> Enum.map(fn [name, email] -> [String.trim(name), String.trim(email)] end)
+    |> Enum.map(fn [name, email, _rest] -> [String.trim(name), String.trim(email)] end)
     |> Enum.each(fn [name, email] ->
       email
       |> find_or_insert_person(name)
       |> subscribe_if_not_already(podcast, context)
     end)
+
+    Logger.info(
+      "After run: #{podcast.name} has #{Podcast.subscription_count(podcast)} subscribers. #{Repo.count(Person)} total people."
+    )
   end
 
   defp subscribe_if_not_already(person, podcast, context) do
@@ -49,7 +59,7 @@ defmodule Mix.Tasks.Changelog.Subscriptions do
       if name == "" do
         Person.with_fake_data()
       else
-        %Person{name: name, handle: Faker.handle(name)}
+        %Person{name: name, handle: Faker.handle(name), public_profile: false}
       end
 
     person

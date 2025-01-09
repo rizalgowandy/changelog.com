@@ -1,19 +1,21 @@
 defmodule ChangelogWeb.Admin.EpisodeControllerTest do
   use ChangelogWeb.ConnCase
-  use Bamboo.Test
 
   import Mock
 
-  alias Changelog.{Episode, EpisodeGuest, Github, NewsItem, NewsQueue}
+  alias Changelog.{Episode, EpisodeGuest, Github, NewsItem, ObanWorkers, NewsQueue}
 
   @valid_attrs %{title: "The one where we win", slug: "181-win"}
   @invalid_attrs %{title: ""}
 
   setup_with_mocks(
     [
-      {Github.Pusher, [], [push: fn _, _ -> {:ok, "success"} end]},
       {Github.Puller, [], [update: fn _, _ -> true end]},
-      {Changelog.Merch, [], [create_discount: fn _, _ -> {:ok, %{code: "yup"}} end]}
+      {Changelog.Merch, [], [create_discount: fn _, _ -> {:ok, %{code: "yup"}} end]},
+      {ObanWorkers.AudioUpdater, [], [queue: fn _ -> :ok end]},
+      {ObanWorkers.NotesPusher, [], [queue: fn _ -> :ok end]},
+      {Changelog.Snap, [], [purge: fn _ -> :ok end]},
+      {Craisin.Client, [], [stats: fn _ -> %{"Delivered" => 0, "Opened" => 0} end]}
     ],
     assigns
   ) do
@@ -47,7 +49,7 @@ defmodule ChangelogWeb.Admin.EpisodeControllerTest do
     assert conn.status == 200
     assert String.contains?(conn.resp_body, e.slug)
     assert String.contains?(conn.resp_body, "2")
-    assert String.contains?(conn.resp_body, "345")
+    assert String.contains?(conn.resp_body, "320")
   end
 
   @tag :as_admin
@@ -76,7 +78,9 @@ defmodule ChangelogWeb.Admin.EpisodeControllerTest do
     count_before = count(Episode)
 
     conn =
-      post(conn, Routes.admin_podcast_episode_path(conn, :create, p.slug), episode: @invalid_attrs)
+      post(conn, Routes.admin_podcast_episode_path(conn, :create, p.slug),
+        episode: @invalid_attrs
+      )
 
     assert html_response(conn, 200) =~ ~r/error/
     assert count(Episode) == count_before
@@ -101,7 +105,9 @@ defmodule ChangelogWeb.Admin.EpisodeControllerTest do
         episode: @valid_attrs
       )
 
-    refute called(Github.Pusher.push())
+    refute called(ObanWorkers.NotesPusher.queue(:_))
+    assert called(ObanWorkers.AudioUpdater.queue(:_))
+    assert called(Changelog.Snap.purge(:_))
     assert redirected_to(conn) == Routes.admin_podcast_episode_path(conn, :index, p.slug)
     assert count(Episode) == 1
   end
@@ -116,7 +122,8 @@ defmodule ChangelogWeb.Admin.EpisodeControllerTest do
         episode: @valid_attrs
       )
 
-    assert called(Github.Pusher.push(:_, e.notes))
+    assert called(ObanWorkers.NotesPusher.queue(:_))
+    assert called(ObanWorkers.AudioUpdater.queue(:_))
     assert redirected_to(conn) == Routes.admin_podcast_episode_path(conn, :index, p.slug)
   end
 
@@ -130,7 +137,8 @@ defmodule ChangelogWeb.Admin.EpisodeControllerTest do
         episode: @invalid_attrs
       )
 
-    refute called(Github.Pusher.push())
+    refute called(ObanWorkers.NotesPusher.queue(:_))
+    refute called(ObanWorkers.AudioUpdater.queue(:_))
     assert html_response(conn, 200) =~ ~r/error/
   end
 
@@ -164,7 +172,7 @@ defmodule ChangelogWeb.Admin.EpisodeControllerTest do
 
     assert redirected_to(conn) == Routes.admin_podcast_episode_path(conn, :index, p.slug)
     assert count(Episode.published()) == 1
-    assert called(Github.Pusher.push(:_, e.notes))
+    assert called(ObanWorkers.NotesPusher.queue(:_))
   end
 
   @tag :as_inserted_admin
@@ -177,7 +185,7 @@ defmodule ChangelogWeb.Admin.EpisodeControllerTest do
     assert redirected_to(conn) == Routes.admin_podcast_episode_path(conn, :index, p.slug)
     assert count(Episode.published()) == 0
     assert count(Episode.scheduled()) == 1
-    assert called(Github.Pusher.push(:_, e.notes))
+    assert called(ObanWorkers.NotesPusher.queue(:_))
   end
 
   @tag :as_inserted_admin
@@ -198,7 +206,7 @@ defmodule ChangelogWeb.Admin.EpisodeControllerTest do
     assert count(Episode.published()) == 1
     assert Repo.get(EpisodeGuest, eg1.id).thanks
     assert Repo.get(EpisodeGuest, eg2.id).thanks
-    assert called(Github.Pusher.push(:_, e.notes))
+    assert called(ObanWorkers.NotesPusher.queue(:_))
   end
 
   @tag :as_inserted_admin

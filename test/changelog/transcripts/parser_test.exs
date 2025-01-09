@@ -6,13 +6,19 @@ defmodule Changelog.Transcripts.ParserTest do
   alias Changelog.Transcripts.Parser
 
   test "parsing an empty string" do
-    parsed = Parser.parse_text("")
+    {:ok, parsed} = Parser.parse_text("")
     assert Enum.empty?(parsed)
   end
 
   test "parsing nil" do
-    parsed = Parser.parse_text(nil)
+    {:ok, parsed} = Parser.parse_text(nil)
     assert Enum.empty?(parsed)
+  end
+
+  test "parsing an invalid doc returns error" do
+    text = File.read!("#{fixtures_path()}/transcripts/ship-it-22.md")
+
+    assert {:error, _msg} = Parser.parse_text(text, [])
   end
 
   test "parsing The Changelog 200" do
@@ -22,7 +28,7 @@ defmodule Changelog.Transcripts.ParserTest do
 
     text = File.read!("#{fixtures_path()}/transcripts/the-changelog-200.md")
 
-    parsed = Parser.parse_text(text, [adam, jerod, raquel])
+    {:ok, parsed} = Parser.parse_text(text, [adam, jerod, raquel])
 
     assert length(parsed) == 181
 
@@ -43,13 +49,13 @@ defmodule Changelog.Transcripts.ParserTest do
   end
 
   test "JS Party 1" do
-    alex = %Person{id: 1, name: "Alex Sexton"}
+    alex = %Person{id: 1, name: "alex sexton"}
     mikeal = %Person{id: 2, name: "Mikeal Rogers"}
     rachel = %Person{id: 3, name: "Rachel White"}
 
     text = File.read!("#{fixtures_path()}/transcripts/js-party-1.md")
 
-    parsed = Parser.parse_text(text, [alex, mikeal, rachel])
+    {:ok, parsed} = Parser.parse_text(text, [alex, mikeal, rachel])
 
     assert length(parsed) == 185
 

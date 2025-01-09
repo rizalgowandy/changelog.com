@@ -1,8 +1,8 @@
 defmodule ChangelogWeb.AuthController do
   use ChangelogWeb, :controller
 
-  alias Changelog.{Person, Mailer}
-  alias ChangelogWeb.Email
+  alias Changelog.Person
+  alias Changelog.ObanWorkers.MailDeliverer
 
   plug RequireGuest, "before signing in" when action in [:new, :create]
   plug Ueberauth
@@ -10,12 +10,12 @@ defmodule ChangelogWeb.AuthController do
   def new(conn, %{"auth" => %{"email" => email}}) do
     if person = Repo.get_by(Person, email: email) do
       person = Person.refresh_auth_token(person)
-      Email.sign_in(person) |> Mailer.deliver_later()
+      MailDeliverer.queue("sign_in", %{"person" => person.id})
       render(conn, "new.html", person: person)
     else
       conn
       |> put_flash(:success, "You aren't in our system! No worries, it's free to join. 💚")
-      |> redirect(to: Routes.person_path(conn, :join, %{email: email}))
+      |> redirect(to: ~p"/join?#{%{email: email}}")
     end
   end
 
@@ -23,11 +23,17 @@ defmodule ChangelogWeb.AuthController do
     render(conn, "new.html", person: nil)
   end
 
-  def create(conn, %{"token" => token}) do
+  def create(conn = %{method: "GET"}, %{"token" => token}) do
+    conn
+    |> assign(:token, token)
+    |> render(:create)
+  end
+
+  def create(conn = %{method: "POST"}, %{"token" => token}) do
     person = Person.get_by_encoded_auth(token)
 
     if person && Timex.before?(Timex.now(), person.auth_token_expires_at) do
-      sign_in_and_redirect(conn, person, Routes.home_path(conn, :show))
+      sign_in_and_redirect(conn, person, ~p"/~")
     else
       conn
       |> put_flash(:error, "Whoops!")
@@ -38,16 +44,16 @@ defmodule ChangelogWeb.AuthController do
   def delete(conn, _params) do
     conn
     |> clear_session()
-    |> redirect(to: Routes.root_path(conn, :index))
+    |> redirect(to: ~p"/")
   end
 
   def callback(conn = %{assigns: %{ueberauth_auth: auth}}, _params) do
     if person = Person.get_by_ueberauth(auth) do
-      sign_in_and_redirect(conn, person, Routes.home_path(conn, :show))
+      sign_in_and_redirect(conn, person, ~p"/~")
     else
       conn
       |> put_flash(:success, "Almost there! Please complete your profile now.")
-      |> redirect(to: Routes.person_path(conn, :join, params_from_ueberauth(auth)))
+      |> redirect(to: ~p"/join?#{params_from_ueberauth(auth)}")
     end
   end
 

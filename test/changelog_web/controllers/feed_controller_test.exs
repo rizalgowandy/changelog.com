@@ -3,11 +3,6 @@ defmodule ChangelogWeb.FeedControllerTest do
 
   alias Changelog.NewsItem
 
-  def valid_xml(conn) do
-    SweetXml.parse(conn.resp_body)
-    true
-  end
-
   test "the sitemap", %{conn: conn} do
     post = insert(:published_post)
     podcast = insert(:podcast)
@@ -45,24 +40,8 @@ defmodule ChangelogWeb.FeedControllerTest do
     assert conn.resp_body =~ episode.summary
   end
 
-  test "the news feed with just titles", %{conn: conn} do
-    post = insert(:published_post, body: "zomg")
-    post |> post_news_item() |> insert()
-    episode = insert(:published_episode, summary: "zomg")
-    episode |> episode_news_item() |> insert()
-
-    conn = get(conn, Routes.feed_path(conn, :news_titles))
-
-    assert conn.status == 200
-    assert valid_xml(conn)
-    assert conn.resp_body =~ post.title
-    assert conn.resp_body =~ episode.title
-    refute conn.resp_body =~ post.body
-    refute conn.resp_body =~ episode.summary
-  end
-
   test "the podcast feed", %{conn: conn} do
-    p = insert(:podcast)
+    p = insert(:podcast, description: "this & that", extended_description: "that & more stuff")
     e = insert(:published_episode, podcast: p)
     insert(:episode_host, episode: e)
     insert(:episode_guest, episode: e)
@@ -75,6 +54,12 @@ defmodule ChangelogWeb.FeedControllerTest do
     assert conn.status == 200
     assert valid_xml(conn)
     assert conn.resp_body =~ e.title
+  end
+
+  test "a podcast feed that doesn't exist", %{conn: conn} do
+    assert_raise Ecto.NoResultsError, fn ->
+      get(conn, ~p"/comments/feed")
+    end
   end
 
   test "the plusplus feed with incorrect slug doesn't exist", %{conn: conn} do
@@ -125,6 +110,31 @@ defmodule ChangelogWeb.FeedControllerTest do
     assert valid_xml(conn)
     assert conn.resp_body =~ e1.title
     assert conn.resp_body =~ e2.title
+  end
+
+  test "a custom feed", %{conn: conn} do
+    p1 = insert(:podcast)
+    e1 = insert(:published_episode, podcast: p1)
+    p2 = insert(:podcast)
+    e2 = insert(:published_episode, podcast: p2)
+    p3 = insert(:podcast)
+    e3 = insert(:published_episode, podcast: p3)
+
+    feed = insert(:feed, podcast_ids: [p1.id, p2.id])
+
+    conn = get(conn, ~p"/feeds/#{feed.slug}")
+
+    assert conn.status == 200
+    assert valid_xml(conn)
+    assert conn.resp_body =~ e1.title
+    assert conn.resp_body =~ e2.title
+    refute conn.resp_body =~ e3.title
+  end
+
+  test "a custom feed that does not exist", %{conn: conn} do
+    assert_raise Ecto.NoResultsError, fn ->
+      get(conn, ~p"/feeds/8675309")
+    end
   end
 
   test "the posts feed", %{conn: conn} do

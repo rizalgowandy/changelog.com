@@ -40,29 +40,14 @@ npm-debug.log*
 /import/cookies.yml
 /cover
 
-# .envrc is likely to contain user-specific secrets, such as CIRCLE_TOKEN
-.envrc
-# like .envrc, but for asdf
-.tool-versions
-# 2021 .envrc equivalent
-2021/.env
-
-# .terraform will contain large, platform-specific binaries
-.terraform
-
-# Ignore local dir where test run results are stored
-# Helps identify flaky tests
-/test_flakes
-
-# Kubernetes config files, LKE to begin with
-.kube
-
-# Local binaries
-/bin
-/2021/bin
+# User-specific environment variables
+.env.user
+# Secret variables
+.envrc.secrets
 
 # Local config files, host-specific
 .config
 
 # Postgres DB dump
 /db-*
+*.sql

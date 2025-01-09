@@ -1,28 +1,45 @@
 defmodule ChangelogWeb.PageController do
   use ChangelogWeb, :controller
 
-  alias Changelog.{Cache, Episode, Newsletters, NewsSponsorship, Podcast}
-  alias ChangelogWeb.TimeView
-  alias ChangelogWeb.Plug.ResponseCache
+  alias Changelog.{Episode, ListKit, Podcast, PodcastHost}
 
   plug RequireGuest, "before joining" when action in [:join]
-  plug ResponseCache
 
   # pages that need special treatment get their own matched function
   # all others simply render the template of the same name
   def action(conn, _) do
     case action_name(conn) do
+      :community -> community(conn, conn.params)
       :guest -> guest(conn, Map.get(conn.params, "slug"))
-      :home -> home(conn, conn.params)
-      :sponsor -> sponsor(conn, conn.params)
-      :sponsor_pricing -> sponsor_pricing(conn, conn.params)
-      :sponsor_story -> sponsor_story(conn, Map.get(conn.params, "slug"))
-      :weekly -> weekly(conn, conn.params)
-      :weekly_archive -> weekly_archive(conn, conn.params)
+      :index -> index(conn, conn.params)
       :++ -> plusplus(conn, conn.params)
       :plusplus -> plusplus(conn, conn.params)
+      :manifest_json -> manifest_json(conn, conn.params)
       name -> render(conn, name)
     end
+  end
+
+  def community(conn, _params) do
+    active =
+      PodcastHost.active_podcast()
+      |> PodcastHost.active_host()
+      |> PodcastHost.newest_last()
+      |> Ecto.Query.preload(:person)
+      |> Repo.all()
+      |> Enum.map(&(&1.person))
+
+    retired =
+      PodcastHost.retired_host_or_podcast()
+      |> PodcastHost.newest_last()
+      |> Ecto.Query.preload(:person)
+      |> Repo.all()
+      |> Enum.map(&(&1.person))
+      |> ListKit.exclude(active)
+
+    conn
+    |> assign(:active, active)
+    |> assign(:retired, retired)
+    |> render(:community)
   end
 
   def guest(conn, slug) when is_nil(slug), do: guest(conn, "podcast")
@@ -47,66 +64,49 @@ defmodule ChangelogWeb.PageController do
     |> assign(:active, active)
     |> assign(:podcast, podcast)
     |> assign(:episode, episode)
-    |> ResponseCache.cache_public()
     |> render(:guest)
   end
 
-  def home(conn, _params) do
-    featured =
-      Episode.published()
-      |> Episode.featured()
+  def index(conn, params) do
+    page =
+      Podcast.master()
+      |> Podcast.get_episodes()
+      |> Episode.published()
       |> Episode.newest_first()
-      |> Episode.limit(5)
-      |> Repo.all()
-      |> Episode.preload_podcast()
-      |> Episode.preload_sponsors()
+      |> Episode.preload_all()
+      |> Repo.paginate(Map.put(params, :page_size, 10))
 
-    render(conn, :home, featured: featured)
+    conn
+    |> assign(:page, page)
+    |> render(:index)
   end
 
-  def sponsor(conn, _params) do
-    weekly = Newsletters.weekly() |> Newsletters.get_stats()
-    examples = Changelog.SponsorStory.examples()
-    ads = NewsSponsorship.get_ads_for_index()
-    render(conn, :sponsor, weekly: weekly, examples: examples, ads: ads)
-  end
-
-  def sponsor_pricing(conn, _params) do
-    weekly = Newsletters.weekly() |> Newsletters.get_stats()
-    weeks = Timex.today() |> TimeView.closest_monday_to() |> TimeView.weeks(12)
-    render(conn, :sponsor_pricing, weekly: weekly, weeks: weeks)
-  end
-
-  def sponsor_story(conn, slug) do
-    story = Changelog.SponsorStory.get_by_slug(slug)
-    render(conn, :sponsor_story, story: story)
-  end
-
-  def weekly(conn, _params) do
-    latest = get_weekly_issues() |> List.first()
-    render(conn, :weekly, latest: latest)
+  def manifest_json(conn, _params) do
+    conn
+    |> json(%{
+      name: "Changelog",
+      short_name: "Changelog",
+      start_url: url(~p"/"),
+      display: "standalone",
+      description: "News and podcasts for developers",
+      icons: [
+          %{
+              src: url(~p"/android-chrome-192x192.png"),
+              sizes: "192x192",
+              type: "image/png"
+          },
+          %{
+              src: url(~p"/android-chrome-512x512.png"),
+              sizes: "512x512",
+              type: "image/png"
+          }
+      ],
+      theme_color: "#ffffff",
+      background_color: "#ffffff"
+      })
   end
 
   def plusplus(conn, _params) do
-    redirect(conn, external: "https://changelog.supercast.tech")
-  end
-
-  def weekly_archive(conn, _params) do
-    issues_by_year =
-      get_weekly_issues()
-      |> Enum.group_by(fn c -> String.slice(c["SentDate"], 0..3) end)
-      |> Enum.reverse()
-
-    conn
-    |> assign(:issues, issues_by_year)
-    |> render(:weekly_archive)
-  end
-
-  defp get_weekly_issues do
-    Cache.get_or_store("weekly_archive", :timer.hours(24), fn ->
-      Craisin.Client.campaigns("e8870c50d493e5cc72c78ffec0c5b86f")
-      |> Enum.filter(fn c -> String.starts_with?(c["Name"], "Weekly") end)
-      |> Enum.filter(fn c -> String.match?(c["Name"], ~r/Issue \#\d+\z/) end)
-    end)
+    redirect(conn, external: Application.get_env(:changelog, :plusplus_url))
   end
 end

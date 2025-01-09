@@ -1,10 +1,25 @@
 defmodule ChangelogWeb.Admin.PersonController do
   use ChangelogWeb, :controller
 
-  alias Changelog.{Mailer, Episode, EpisodeRequest, NewsItem, Person, Slack, Subscription}
-  alias ChangelogWeb.Email
+  alias Changelog.{
+    Episode,
+    EpisodeRequest,
+    Fastly,
+    NewsItem,
+    NewsItemComment,
+    Newsletters,
+    Person,
+    Podcast,
+    Slack,
+    Zulip,
+    Subscription
+  }
 
-  plug :assign_person when action in [:show, :edit, :update, :delete, :slack]
+  alias Changelog.ObanWorkers.MailDeliverer
+
+  plug :assign_person
+       when action in [:show, :edit, :update, :delete, :slack, :zulip, :news, :comments, :masq]
+
   plug Authorize, [Policies.Admin.Person, :person]
   plug :scrub_params, "person" when action in [:create, :update]
 
@@ -17,7 +32,8 @@ defmodule ChangelogWeb.Admin.PersonController do
         "admin" -> Person.admins()
         "host" -> Person.hosts()
         "editor" -> Person.editors()
-        "spam" -> Person.spammy()
+        "spammy" -> Person.spammy()
+        "uncomfirmed" -> Person.needs_confirmation()
         _else -> Person
       end
       |> Person.newest_first()
@@ -58,6 +74,7 @@ defmodule ChangelogWeb.Admin.PersonController do
       |> NewsItem.with_person(person)
       |> NewsItem.published()
       |> NewsItem.newest_first()
+      |> NewsItem.limit(5)
       |> NewsItem.preload_all()
       |> Repo.all()
 
@@ -69,6 +86,24 @@ defmodule ChangelogWeb.Admin.PersonController do
       |> NewsItem.preload_all()
       |> Repo.all()
 
+    comments =
+      person
+      |> assoc(:comments)
+      |> NewsItemComment.newest_first()
+      |> NewsItemComment.limit(5)
+      |> NewsItemComment.preload_all()
+      |> Repo.all()
+
+    podcasts =
+      Podcast.active()
+      |> Podcast.by_position()
+      |> Repo.all()
+
+    feeds =
+      person
+      |> assoc(:feeds)
+      |> Repo.all()
+
     conn
     |> assign(:person, person)
     |> assign(:episodes, episodes)
@@ -76,6 +111,9 @@ defmodule ChangelogWeb.Admin.PersonController do
     |> assign(:subscriptions, subscriptions)
     |> assign(:published, published)
     |> assign(:declined, declined)
+    |> assign(:comments, comments)
+    |> assign(:podcasts, podcasts)
+    |> assign(:feeds, feeds)
     |> render(:show)
   end
 
@@ -96,7 +134,7 @@ defmodule ChangelogWeb.Admin.PersonController do
 
         conn
         |> put_flash(:result, "success")
-        |> redirect_next(params, Routes.admin_person_path(conn, :edit, person))
+        |> redirect_next(params, ~p"/admin/people/#{person}/edit")
 
       {:error, changeset} ->
         conn
@@ -115,10 +153,12 @@ defmodule ChangelogWeb.Admin.PersonController do
     changeset = Person.admin_update_changeset(person, person_params)
 
     case Repo.update(changeset) do
-      {:ok, _person} ->
+      {:ok, person} ->
+        Fastly.purge(person)
+
         conn
         |> put_flash(:result, "success")
-        |> redirect_next(params, Routes.admin_person_path(conn, :index))
+        |> redirect_next(params, ~p"/admin/people")
 
       {:error, changeset} ->
         conn
@@ -130,20 +170,54 @@ defmodule ChangelogWeb.Admin.PersonController do
   def delete(conn = %{assigns: %{person: person}}, params) do
     Repo.delete!(person)
 
+    Craisin.Subscriber.delete(Newsletters.nightly().id, person.email)
+
+    send_to_sentry("person_delete", %{
+      person: person.id,
+      referer: Plug.Conn.get_req_header(conn, "referer")
+    })
+
     conn
     |> put_flash(:result, "success")
-    |> redirect_next(params, Routes.admin_person_path(conn, :index))
+    |> redirect_next(params, ~p"/admin/people")
+  end
+
+  def comments(conn = %{assigns: %{person: person}}, params) do
+    page =
+      person
+      |> assoc(:comments)
+      |> NewsItemComment.newest_first()
+      |> NewsItemComment.preload_all()
+      |> Repo.paginate(params)
+
+    conn
+    |> assign(:comments, page.entries)
+    |> assign(:page, page)
+    |> render(:comments)
+  end
+
+  def news(conn = %{assigns: %{person: person}}, params) do
+    page =
+      NewsItem
+      |> NewsItem.with_person(person)
+      |> NewsItem.published()
+      |> NewsItem.newest_first()
+      |> NewsItem.preload_all()
+      |> Repo.paginate(params)
+
+    conn
+    |> assign(:published, page.entries)
+    |> assign(:page, page)
+    |> render(:news)
   end
 
   def slack(conn = %{assigns: %{person: person}}, params) do
     flash =
       case Slack.Client.invite(person.email) do
         %{"ok" => true} ->
-          set_slack_id_to_pending(person)
           "success"
 
         %{"ok" => false, "error" => "already_in_team"} ->
-          set_slack_id_to_pending(person)
           "success"
 
         _else ->
@@ -152,11 +226,33 @@ defmodule ChangelogWeb.Admin.PersonController do
 
     conn
     |> put_flash(:result, flash)
-    |> redirect_next(params, Routes.admin_person_path(conn, :index))
+    |> redirect_next(params, ~p"/admin/people")
+  end
+
+  def zulip(conn = %{assigns: %{person: person}}, params) do
+    flash =
+      case Zulip.invite(person.email) do
+        %{"ok" => true} ->
+          "success"
+        _else ->
+          "failure"
+      end
+
+    conn
+    |> put_flash(:result, flash)
+    |> redirect_next(params, ~p"/admin/people")
+  end
+
+  def masq(conn = %{assigns: %{person: person}}, _params) do
+    conn
+    |> put_session("id", person.id)
+    |> configure_session(renew: true)
+    |> put_flash(:success, "Now using the site as #{person.name}")
+    |> redirect(to: ~p"/")
   end
 
   defp assign_person(conn = %{params: %{"id" => id}}, _) do
-    person = Repo.get!(Person, id)
+    person = Person |> Repo.get!(id) |>Repo.preload(:active_membership)
     assign(conn, :person, person)
   end
 
@@ -175,13 +271,6 @@ defmodule ChangelogWeb.Admin.PersonController do
     end
   end
 
-  defp set_slack_id_to_pending(person = %{slack_id: id}) when not is_nil(id), do: person
-
-  defp set_slack_id_to_pending(person) do
-    {:ok, person} = Repo.update(Person.slack_changes(person, "pending"))
-    person
-  end
-
   defp handle_welcome_email(person, params) do
     case Map.get(params, "welcome") do
       "generic" -> handle_generic_welcome_email(person)
@@ -192,11 +281,11 @@ defmodule ChangelogWeb.Admin.PersonController do
 
   defp handle_generic_welcome_email(person) do
     person = Person.refresh_auth_token(person)
-    Email.community_welcome(person) |> Mailer.deliver_later()
+    MailDeliverer.queue("community_welcome", %{"person" => person.id})
   end
 
   defp handle_guest_welcome_email(person) do
     person = Person.refresh_auth_token(person)
-    Email.guest_welcome(person) |> Mailer.deliver_later()
+    MailDeliverer.queue("guest_welcome", %{"person" => person.id})
   end
 end

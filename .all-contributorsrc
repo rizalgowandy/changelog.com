@@ -358,9 +358,102 @@
       "contributions": [
         "bug"
       ]
+    },
+    {
+      "login": "sorentwo",
+      "name": "Parker Selbert",
+      "avatar_url": "https://avatars.githubusercontent.com/u/270831?v=4",
+      "profile": "http://sorentwo.com",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "hailelagi",
+      "name": "Haile Lagi",
+      "avatar_url": "https://avatars.githubusercontent.com/u/52631736?v=4",
+      "profile": "http://hailelagi.com",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "Nezteb",
+      "name": "Noah",
+      "avatar_url": "https://avatars.githubusercontent.com/u/3588798?v=4",
+      "profile": "http://nezteb.net",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "pilor",
+      "name": "Chris Eggert",
+      "avatar_url": "https://avatars.githubusercontent.com/u/718813?v=4",
+      "profile": "https://github.com/pilor",
+      "contributions": [
+        "code",
+        "doc"
+      ]
+    },
+    {
+      "login": "ken-kost",
+      "name": "Kenneth Kostrešević",
+      "avatar_url": "https://avatars.githubusercontent.com/u/34007453?v=4",
+      "profile": "https://reintegrate-web-development.fly.dev/",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "gorosgobe",
+      "name": "Pablo Gorostiaga",
+      "avatar_url": "https://avatars.githubusercontent.com/u/26676483?v=4",
+      "profile": "https://github.com/gorosgobe",
+      "contributions": [
+        "bug"
+      ]
+    },
+    {
+      "login": "patHyatt",
+      "name": "Patrick Hyatt",
+      "avatar_url": "https://avatars.githubusercontent.com/u/296125?v=4",
+      "profile": "http://www.patrickhyatt.com",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "glentner",
+      "name": "Geoffrey Lentner",
+      "avatar_url": "https://avatars.githubusercontent.com/u/8965948?v=4",
+      "profile": "http://lentner.io",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "br3ndonland",
+      "name": "Brendon Smith",
+      "avatar_url": "https://avatars.githubusercontent.com/u/26674818?v=4",
+      "profile": "http://bws.bio",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "zamai",
+      "name": "Alex Zamai",
+      "avatar_url": "https://avatars.githubusercontent.com/u/10281047?v=4",
+      "profile": "https://github.com/zamai",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "repoType": "github",
   "repoHost": "https://github.com",
-  "skipCi": true
+  "skipCi": true,
+  "commitConvention": "angular",
+  "commitType": "docs"
 }

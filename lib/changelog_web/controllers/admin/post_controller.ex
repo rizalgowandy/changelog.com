@@ -2,6 +2,7 @@ defmodule ChangelogWeb.Admin.PostController do
   use ChangelogWeb, :controller
 
   alias Changelog.{Cache, NewsQueue, Post, PostNewsItem}
+  alias Changelog.ObanWorkers.FeedUpdater
 
   plug :assign_post when action in [:edit, :update, :delete, :publish, :unpublish]
   plug Authorize, [Policies.Admin.Post, :post]
@@ -50,7 +51,7 @@ defmodule ChangelogWeb.Admin.PostController do
 
         conn
         |> put_flash(:result, "success")
-        |> redirect_next(params, Routes.admin_post_path(conn, :edit, post))
+        |> redirect_next(params, ~p"/admin/posts/#{post}/edit")
 
       {:error, changeset} ->
         conn
@@ -72,11 +73,12 @@ defmodule ChangelogWeb.Admin.PostController do
     case Repo.update(changeset) do
       {:ok, post} ->
         PostNewsItem.update(post)
+        handle_feed_updates(post)
         Cache.delete(post)
 
         conn
         |> put_flash(:result, "success")
-        |> redirect_next(params, Routes.admin_post_path(conn, :index))
+        |> redirect_next(params, ~p"/admin/posts")
 
       {:error, changeset} ->
         conn
@@ -88,11 +90,12 @@ defmodule ChangelogWeb.Admin.PostController do
   def delete(conn = %{assigns: %{post: post}}, _params) do
     Repo.delete!(post)
     PostNewsItem.delete(post)
+    handle_feed_updates(post)
     Cache.delete(post)
 
     conn
     |> put_flash(:result, "success")
-    |> redirect(to: Routes.admin_post_path(conn, :index))
+    |> redirect(to: ~p"/admin/posts")
   end
 
   def publish(conn = %{assigns: %{post: post}}, params) do
@@ -104,7 +107,7 @@ defmodule ChangelogWeb.Admin.PostController do
 
         conn
         |> put_flash(:result, "success")
-        |> redirect_next(params, Routes.admin_post_path(conn, :index))
+        |> redirect_next(params, ~p"/admin/posts")
 
       {:error, changeset} ->
         conn
@@ -118,11 +121,12 @@ defmodule ChangelogWeb.Admin.PostController do
 
     case Repo.update(changeset) do
       {:ok, post} ->
+        handle_feed_updates(post)
         Cache.delete(post)
 
         conn
         |> put_flash(:result, "success")
-        |> redirect_next(params, Routes.admin_post_path(conn, :index))
+        |> redirect_next(params, ~p"/admin/posts")
 
       {:error, changeset} ->
         conn
@@ -140,5 +144,11 @@ defmodule ChangelogWeb.Admin.PostController do
     post
     |> PostNewsItem.insert(logger)
     |> NewsQueue.append()
+  end
+
+  defp handle_feed_updates(post) do
+    if Post.is_published(post) do
+      FeedUpdater.queue(post)
+    end
   end
 end

@@ -20,11 +20,13 @@ defmodule Changelog.Buffer.Client do
     end
   end
 
+  def handle({:ok, %{status_code: 200, body: %{"success" => false, "message" => message}}}), do: log(message)
   def handle({:ok, %{status_code: 200, body: body}}), do: body
   def handle({:ok, %{status_code: code, body: body}}) when code > 400, do: log(body["error"])
   def handle({:error, %{reason: reason}}), do: log(reason)
 
   def create(profiles, text, media \\ [])
+  def create(nil, _text, _media), do: false
   def create(profiles, text, media) when is_binary(profiles), do: create([profiles], text, media)
 
   def create(profiles, text, media) when is_list(profiles) do

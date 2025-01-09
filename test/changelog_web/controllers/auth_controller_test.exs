@@ -1,6 +1,7 @@
 defmodule ChangelogWeb.AuthControllerTest do
   use ChangelogWeb.ConnCase
-  use Bamboo.Test
+  use Changelog.EmailCase
+  use Oban.Testing, repo: Changelog.Repo
 
   alias Changelog.Person
 
@@ -24,7 +25,10 @@ defmodule ChangelogWeb.AuthControllerTest do
 
     assert html_response(conn, 200) =~ "Check your email"
     assert person.auth_token != nil
-    assert_delivered_email(ChangelogWeb.Email.sign_in(person))
+
+    assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :email)
+
+    assert_email_sent(ChangelogWeb.Email.sign_in(person))
   end
 
   test "submitting the form with unknown email sends you to join", %{conn: conn} do
@@ -33,7 +37,7 @@ defmodule ChangelogWeb.AuthControllerTest do
     assert redirected_to(conn) == Routes.person_path(conn, :join, %{email: "joe@blow.com"})
   end
 
-  test "following a valid auth token signs you in", %{conn: conn} do
+  test "posting a valid auth token signs you in", %{conn: conn} do
     person = insert(:person)
 
     changeset =
@@ -45,20 +49,20 @@ defmodule ChangelogWeb.AuthControllerTest do
     {:ok, person} = Repo.update(changeset)
     {:ok, encoded} = Person.encoded_auth(person)
 
-    conn = get(conn, "/in/#{encoded}")
+    conn = post(conn, "/in/#{encoded}")
 
     assert redirected_to(conn) == Routes.home_path(conn, :show)
     assert get_session(conn, "id") == person.id
   end
 
-  test "following an invalid auth token doesn't sign you in", %{conn: conn} do
-    conn = get(conn, "/in/asdf1234")
+  test "posting an invalid auth token doesn't sign you in", %{conn: conn} do
+    conn = post(conn, "/in/asdf1234")
 
     assert html_response(conn, 200) =~ "Sign In"
     assert is_nil(get_session(conn, "id"))
   end
 
-  test "following an expired auth token doesn't sign you in", %{conn: conn} do
+  test "posting an expired auth token doesn't sign you in", %{conn: conn} do
     person = insert(:person)
 
     changeset =
@@ -70,7 +74,7 @@ defmodule ChangelogWeb.AuthControllerTest do
     {:ok, person} = Repo.update(changeset)
     {:ok, encoded} = Person.encoded_auth(person)
 
-    conn = get(conn, "/in/#{encoded}")
+    conn = post(conn, "/in/#{encoded}")
 
     assert html_response(conn, 200) =~ "Sign In"
     refute get_session(conn, "id") == person.id
@@ -111,47 +115,6 @@ defmodule ChangelogWeb.AuthControllerTest do
         conn
         |> assign(:ueberauth_failure, %{})
         |> get("/auth/github/callback")
-
-      assert conn.status == 200
-      assert get_session(conn, "id") == nil
-    end
-  end
-
-  describe "twitter auth" do
-    test "successful twitter auth on existing person signs you in", %{conn: conn} do
-      person = insert(:person, twitter_handle: "joeblow")
-
-      conn =
-        conn
-        |> assign(:ueberauth_auth, %{provider: :twitter, info: %{nickname: "joeblow"}})
-        |> get("/auth/github/callback")
-
-      assert redirected_to(conn) == Routes.home_path(conn, :show)
-      assert get_session(conn, "id") == person.id
-    end
-
-    test "successful twitter auth on new person sends you to join", %{conn: conn} do
-      conn =
-        conn
-        |> assign(:ueberauth_auth, %{
-          provider: :twitter,
-          info: %{name: "Joe Blow", nickname: "joeblow"}
-        })
-        |> get("/auth/github/callback")
-
-      assert redirected_to(conn) ==
-               Routes.person_path(conn, :join, %{
-                 name: "Joe Blow",
-                 handle: "joeblow",
-                 twitter_handle: "joeblow"
-               })
-    end
-
-    test "failed twitter auth doesn't sign you in", %{conn: conn} do
-      conn =
-        conn
-        |> assign(:ueberauth_failure, %{})
-        |> get("/auth/twitter/callback")
 
       assert conn.status == 200
       assert get_session(conn, "id") == nil

@@ -1,103 +1,79 @@
 defmodule ChangelogWeb.NewsItemController do
   use ChangelogWeb, :controller
 
-  alias Changelog.{NewsItem, NewsItemComment, NewsSponsorship, Subscription}
-  alias ChangelogWeb.NewsItemView
+  alias Changelog.{Episode, NewsItem, NewsItemComment, Podcast, Subscription}
+  alias ChangelogWeb.{EpisodeView, NewsItemView, PersonView}
 
   plug RequireUser, "before submitting" when action in [:create]
   plug RequireUser, "before subscribing" when action in [:subscribe, :unsubscribe]
 
-  def index(conn, params) do
-    {page, unpinned} = NewsItem.get_unpinned_non_feed_news_items(params)
-    unpinned = NewsItem.batch_load_objects(unpinned)
-
-    # Only load pinned items for the first page
-    pinned =
-      if page.page_number == 1 do
-        NewsItem.get_pinned_non_feed_news_items()
-        |> NewsItem.batch_load_objects()
-      else
-        []
-      end
-
-    conn
-    |> assign(:ads, get_ads())
-    |> assign(:pinned, pinned)
-    |> assign(:items, unpinned)
-    |> assign(:page, page)
-    |> render(:index)
-  end
-
-  def fresh(conn, params) do
-    page =
-      NewsItem
-      |> NewsItem.published()
-      |> NewsItem.non_feed_only()
-      |> NewsItem.freshest_first()
-      |> NewsItem.preload_all()
-      |> Repo.paginate(Map.put(params, :page_size, 20))
-
-    items = Enum.map(page.entries, &NewsItem.load_object/1)
-
-    render(conn, :fresh, ads: get_ads(), items: items, page: page)
-  end
-
-  def top_week(conn, params), do: top(conn, Map.merge(params, %{"filter" => "week"}))
-  def top_month(conn, params), do: top(conn, Map.merge(params, %{"filter" => "month"}))
-  def top_all(conn, params), do: top(conn, Map.merge(params, %{"filter" => "all"}))
-
-  def top(conn, params = %{"filter" => filter}) do
-    query =
-      NewsItem
-      |> NewsItem.published()
-      |> NewsItem.non_feed_only()
-      |> NewsItem.sans_object()
-      |> NewsItem.top_clicked_first()
-      |> NewsItem.preload_all()
-
-    query =
-      case filter do
-        "week" -> NewsItem.published_since(query, Timex.shift(Timex.now(), weeks: -1))
-        "month" -> NewsItem.published_since(query, Timex.shift(Timex.now(), months: -1))
-        _else -> query
-      end
-
-    page = Repo.paginate(query, Map.put(params, :page_size, 20))
-    items = Enum.map(page.entries, &NewsItem.load_object/1)
-
-    conn
-    |> assign(:filter, filter)
-    |> assign(:items, items)
-    |> assign(:ads, get_ads())
-    |> assign(:page, page)
-    |> render(:top)
-  end
-
-  def top(conn, params), do: top(conn, Map.merge(params, %{"filter" => "week"}))
-
-  def new(conn, _params) do
+  def new(conn = %{assigns: %{current_user: user}}, _params) do
     changeset = NewsItem.submission_changeset(%NewsItem{})
-    render(conn, :new, changeset: changeset)
+
+    conn
+    |> assign(:changeset, changeset)
+    |> assign(:subscribed, news_subscriber?(user))
+    |> render(:new)
   end
 
   def create(conn = %{assigns: %{current_user: user}}, %{"news_item" => item_params}) do
     item = %NewsItem{type: :link, author_id: user.id, submitter_id: user.id, status: :submitted}
     changeset = NewsItem.submission_changeset(item, item_params)
 
-    case Repo.insert(changeset) do
-      {:ok, _item} ->
-        conn
-        |> put_flash(:success, "We received your submission! Stay awesome 💚")
-        |> redirect(to: Routes.root_path(conn, :index))
+    if news_subscriber?(user) do
+      case Repo.insert(changeset) do
+        {:ok, _item} ->
+          conn
+          |> put_flash(:success, "We received your submission! Stay awesome 💚")
+          |> redirect(to: ~p"/")
 
-      {:error, changeset} ->
-        conn
-        |> put_flash(:error, "Something went wrong. 😭")
-        |> render(:new, changeset: changeset)
+        {:error, changeset} ->
+          conn
+          |> put_flash(:error, "Something went wrong. 😭")
+          |> assign(:changeset, changeset)
+          |> render(:new)
+      end
+    else
+      conn
+      |> put_flash(:error, "You must subscribe to Changelog News 📥")
+      |> assign(:subscribed, false)
+      |> assign(:changeset, changeset)
+      |> render(:new)
     end
   end
 
   def show(conn, %{"id" => slug}) do
+    # Changelog News gets its own special treatment
+    try do
+      podcast = Podcast.get_by_slug!("news")
+
+      sub_count = Subscription.subscribed_count(podcast)
+
+      episode =
+        assoc(podcast, :episodes)
+        |> Episode.published()
+        |> Episode.preload_podcast()
+        |> Repo.get_by!(slug: slug)
+
+      previous =
+        assoc(podcast, :episodes)
+        |> Episode.previous_to(episode)
+        |> Episode.newest_first(:published_at)
+        |> Episode.preload_podcast()
+        |> Episode.limit(1)
+        |> Repo.one()
+
+      conn
+      |> assign(:sub_count, sub_count)
+      |> assign(:podcast, podcast)
+      |> assign(:episode, episode)
+      |> assign(:previous, previous)
+      |> put_view(EpisodeView)
+      |> render(:news, layout: {ChangelogWeb.LayoutView, "news.html"})
+    rescue
+      _e -> false
+    end
+
     hashid = slug |> String.split("-") |> List.last()
     item = item_from_hashid(hashid, NewsItem.published())
 
@@ -106,7 +82,7 @@ defmodule ChangelogWeb.NewsItemController do
         redirect(conn, to: NewsItemView.object_path(item))
 
       slug == hashid ->
-        redirect(conn, to: Routes.news_item_path(conn, :show, NewsItem.slug(item)))
+        redirect(conn, to: ~p"/news/#{NewsItem.slug(item)}")
 
       true ->
         item =
@@ -142,8 +118,14 @@ defmodule ChangelogWeb.NewsItemController do
     send_resp(conn, 204, "")
   end
 
+  def visit(conn = %{method: "POST", assigns: %{current_user: user}}, %{"id" => hashid}) do
+    item = item_from_hashid(hashid) |> NewsItem.preload_source()
+    if should_track?(user, item), do: NewsItem.track_click(item)
+    send_resp(conn, 204, "")
+  end
+
   def visit(conn = %{assigns: %{current_user: user}}, %{"id" => hashid}) do
-    item = item_from_hashid(hashid)
+    item = item_from_hashid(hashid) |> NewsItem.preload_source()
 
     if should_track?(user, item), do: NewsItem.track_click(item)
 
@@ -152,11 +134,31 @@ defmodule ChangelogWeb.NewsItemController do
     else
       conn
       |> put_layout(false)
-      |> render(:visit, to: item.url)
+      |> render(:visit, to: NewsItemView.news_item_url(item))
     end
   end
 
+  # if this is a Changelog News episode, preview that instead
   def preview(conn, %{"id" => id}) do
+    try do
+      podcast = Podcast.get_by_slug!("news")
+
+      episode =
+        assoc(podcast, :episodes)
+        |> Episode.preload_all()
+        |> Repo.get_by!(slug: id)
+        |> Episode.load_news_item()
+
+      conn
+      |> assign(:podcast, podcast)
+      |> assign(:episode, episode)
+      |> assign(:item, episode.news_item)
+      |> put_view(EpisodeView)
+      |> render(:show)
+    rescue
+      _e -> false
+    end
+
     item =
       NewsItem
       |> Repo.get_by!(id: id)
@@ -179,7 +181,7 @@ defmodule ChangelogWeb.NewsItemController do
 
     conn
     |> put_flash(:success, "We'll email you when folks comment 📥")
-    |> redirect(to: Routes.news_item_path(conn, :show, NewsItem.slug(item)))
+    |> redirect(to: ~p"/news/#{NewsItem.slug(item)}")
   end
 
   def unsubscribe(conn = %{assigns: %{current_user: user}}, %{"id" => hashid}) do
@@ -188,17 +190,7 @@ defmodule ChangelogWeb.NewsItemController do
 
     conn
     |> put_flash(:success, "No more email notifications from now on 🤐")
-    |> redirect(to: Routes.news_item_path(conn, :show, NewsItem.slug(item)))
-  end
-
-  defp get_ads do
-    Timex.today()
-    |> NewsSponsorship.week_of()
-    |> NewsSponsorship.preload_all()
-    |> Repo.all()
-    |> Enum.take_random(2)
-    |> Enum.map(&NewsSponsorship.ad_for_index/1)
-    |> Enum.reject(&is_nil/1)
+    |> redirect(to: ~p"/news/#{NewsItem.slug(item)}")
   end
 
   defp item_from_hashid(hashid, query \\ NewsItem) do
@@ -207,5 +199,12 @@ defmodule ChangelogWeb.NewsItemController do
 
   defp should_track?(user, item) do
     NewsItem.is_published(item) && !is_admin?(user)
+  end
+
+  defp news_subscriber?(nil), do: false
+
+  defp news_subscriber?(user) do
+    news = Repo.get_by(Podcast, slug: "news")
+    PersonView.is_subscribed(user, news)
   end
 end

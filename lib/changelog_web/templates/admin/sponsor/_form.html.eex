@@ -62,13 +62,13 @@
 
     <div class="field <%= AdminHelpers.error_class(f, :github_handle) %>">
       <%= label f, :github_handle, "On GitHub" %>
-      <%= text_input f, :github_handle, placeholder: "apple" %>
+      <%= text_input f, :github_handle, placeholder: "apple", mask: "slug" %>
       <%= AdminHelpers.error_message(f, :github_handle) %>
     </div>
 
     <div class="field <%= AdminHelpers.error_class(f, :twitter_handle) %>">
       <%= label f, :twitter_handle, "On Twitter" %>
-      <%= text_input f, :twitter_handle, placeholder: "apple" %>
+      <%= text_input f, :twitter_handle, placeholder: "apple", mask: "slug" %>
       <%= AdminHelpers.error_message(f, :twitter_handle) %>
     </div>
   </div>
@@ -77,6 +77,40 @@
     <%= label f, :description %>
     <%= text_input f, :description, placeholder: "Apple leads the world in innovation with iPhone, iPad, Mac, Apple Watch and Apple TV." %>
     <%= AdminHelpers.error_message(f, :description) %>
+  </div>
+
+  <div class="field">
+    <%= label(f, :reps) do %>
+      Reps <%= AdminHelpers.help_icon("People with access to the sponsor dashboard") %>
+    <% end %>
+
+    <div class="ui middle aligned selection list js-sponsor_reps">
+      <%= inputs_for f, :sponsor_reps, fn i -> %>
+        <% rep = AdminHelpers.load_from_form(i, Person, :person) %>
+        <div class="item <%= if AdminHelpers.is_persisted(i.data), do: "persisted" %>">
+          <%= hidden_input(i, :person_id) %>
+          <img class="ui avatar image" src="<%= ChangelogWeb.PersonView.avatar_url(rep) %>">
+
+          <div class="content">
+            <div class="header"><%= rep.name %> (@<%= rep.handle %>)</div>
+          </div>
+
+          <div class="right floated content">
+            <div class="ui tiny icon button js-remove">
+              <i class="remove icon"></i>
+              <%= hidden_input(i, :delete) %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+
+    <div class="ui search">
+      <div class="ui left icon input">
+        <input class="prompt" type="text" placeholder="Add a Rep">
+        <i class="user icon"></i>
+      </div>
+    </div>
   </div>
 
   <div class="ui hidden divider"></div>

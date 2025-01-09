@@ -3,7 +3,8 @@ defmodule ChangelogWeb.SlackControllerTest do
 
   import Mock
 
-  alias Changelog.Slack.{Client, Messages, Tasks}
+  alias Changelog.Slack.{Client, Messages}
+  alias Changelog.ObanWorkers.SlackImporter
 
   describe "the countdown endpoint" do
     setup do
@@ -33,10 +34,7 @@ defmodule ChangelogWeb.SlackControllerTest do
     test "it uses an episode that is currently recording", %{conn: conn, podcast: podcast} do
       insert(:live_episode, podcast: podcast, recorded_at: hours_ago(1))
 
-      conn =
-        with_mock Changelog.Icecast, is_streaming: fn -> true end do
-          get(conn, Routes.slack_path(conn, :countdown, podcast.slug))
-        end
+      conn = get(conn, Routes.slack_path(conn, :countdown, podcast.slug))
 
       assert conn.status == 200
       assert conn.resp_body =~ "It's Go Time!"
@@ -74,7 +72,7 @@ defmodule ChangelogWeb.SlackControllerTest do
     } do
       with_mocks([
         {Client, [], [im: fn _, _ -> nil end]},
-        {Tasks, [], [import_member_id: fn _, _ -> nil end]}
+        {SlackImporter, [], [import_member_id: fn _, _ -> nil end]}
       ]) do
         conn =
           post(conn, Routes.slack_path(conn, :event), %{
@@ -92,7 +90,7 @@ defmodule ChangelogWeb.SlackControllerTest do
           })
 
         assert called(Client.im("U2XU53R", Messages.welcome()))
-        assert called(Tasks.import_member_id("U2XU53R", "grace@hopper.com"))
+        assert called(SlackImporter.import_member_id("U2XU53R", "grace@hopper.com"))
         assert conn.status == 200
       end
     end

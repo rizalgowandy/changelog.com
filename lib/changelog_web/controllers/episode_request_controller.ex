@@ -1,12 +1,12 @@
 defmodule ChangelogWeb.EpisodeRequestController do
   use ChangelogWeb, :controller
 
-  alias Changelog.{EpisodeRequest}
+  alias Changelog.{Cache, EpisodeRequest}
 
   plug RequireUser, "before submitting" when action in [:create]
 
-  def new(conn = %{assigns: %{podcasts: podcasts}}, params) do
-    podcast = Enum.find(podcasts, fn p -> p.slug == params["slug"] end)
+  def new(conn, params) do
+    podcast = Enum.find(Cache.active_podcasts(), fn p -> p.slug == params["slug"] end)
 
     {conn, podcast_id} =
       case podcast do
@@ -29,7 +29,7 @@ defmodule ChangelogWeb.EpisodeRequestController do
       {:ok, _request} ->
         conn
         |> put_flash(:success, "We received your episode request! Stay awesome 💚")
-        |> redirect(to: Routes.root_path(conn, :index))
+        |> redirect(to: ~p"/")
 
       {:error, changeset} ->
         conn

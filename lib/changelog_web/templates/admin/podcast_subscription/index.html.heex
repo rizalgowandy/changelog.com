@@ -1,0 +1,87 @@
+<div class="ui basic segment">
+  <h1 class="ui dividing header">
+    <%= link("Podcasts", to: ~p"/admin/podcasts") %>
+    &raquo;
+    <%= link(@podcast.name, to: ~p"/admin/podcasts/#{@podcast.slug}/episodes") %>
+    &raquo;
+    Subscriptions
+    <%= link("(View Public)", to: ~p"/#{@podcast.slug}", class: "view") %>
+  </h1>
+
+  <div class="actions right">
+  </div>
+</div>
+
+<div class="ui basic segment">
+  <div class="ui horizontal statistic">
+    <div class="value"><%= total_subscribed_count(@podcast) %></div>
+    <div class="label">Total Subs</div>
+  </div>
+  <div class="ui horizontal statistic">
+    <div class="value"><%= total_unsubscribed_count(@podcast) %></div>
+    <div class="label">Total Unsubs</div>
+  </div>
+<%= for days <- [7, 30] do %>
+  <% {up, down} = recent_subscription_counts(@podcast, days) %>
+  <%= if up > down do %>
+  <div class="ui horizontal statistic green">
+    <div class="value">+<%= up - down %></div>
+    <div class="label">Last <%= days %> Days</div>
+  </div>
+  <% else %>
+  <div class="ui horizontal statistic red">
+    <div class="value"><%= up - down %></div>
+    <div class="label">Last <%= days %> Days</div>
+  </div>
+  <% end %>
+<% end %>
+</div>
+
+<div class="ui basic segment">
+  <div class="ui twelve wide column">
+    <div class="chart" data-chart={day_chart_data(@podcast)}></div>
+  </div>
+</div>
+
+<div class="ui basic segment">
+  <div class="ui twelve wide column">
+    <div class="chart" data-chart={month_chart_data(@podcast)}></div>
+  </div>
+</div>
+
+<div class="ui basic segment">
+<%= if Enum.any?(@subscriptions) do %>
+  <table class="ui celled striped table">
+    <thead>
+      <tr>
+        <th>Person</th>
+        <th>Context</th>
+        <th>Subscribed At</th>
+        <th>Unsubscribed At</th>
+      </tr>
+    </thead>
+
+    <tbody>
+    <%= for sub <- @subscriptions do %>
+      <tr>
+        <td>
+          <%= link to: ~p"/admin/people/#{sub.person}" do %>
+            <%= if Changelog.Faker.name_fake?(sub.person.name) do %>
+              <%= sub.person.email %>
+            <% else %>
+              <img class="ui avatar image" src={PersonView.avatar_url(sub.person)}>
+              <%= sub.person.name %>
+            <% end %>
+        <% end %>
+        </td>
+        <td><%= sub.context |> String.replace_leading("you", "") %></td>
+        <td><%= AdminHelpers.ts(sub.inserted_at) %></td>
+        <td><%= AdminHelpers.ts(sub.unsubscribed_at) %></td>
+      </tr>
+    <% end %>
+    </tbody>
+  </table>
+
+  <%= render(SharedView, "_pagination.html", assigns) %>
+<% end %>
+</div>

@@ -1,0 +1,105 @@
+<% # sometimes this table is rendered within a specific podcast context, sometimes not %>
+<table class="ui celled striped unstackable table">
+  <thead>
+    <tr>
+    <%= if assigns[:podcast] do %>
+      <th>Slug</th>
+    <% else %>
+      <th>Podcast</th>
+    <% end %>
+      <th>Title</th>
+      <th>Featuring</th>
+    <%= if @status == :draft do %>
+      <th>Record Time</th>
+      <th>Publish Date</th>
+    <% else %>
+      <th>Publish Date</th>
+      <th>Duration</th>
+    <%= if @status == :published do %>
+      <th>
+        Downloads
+        <%= if assigns[:podcast], do: AdminHelpers.info_icon("as of #{last_stat_date(@podcast)}") %>
+      </th>
+    <% end %>
+    <% end %>
+      <th class="center aligned">
+      <%= if assigns[:actions] && assigns[:podcast] do %>
+        <div class="ui basic buttons">
+          <%= AdminHelpers.icon_link("eye", to: ~p"/#{@podcast.slug}", title: "View Public") %>
+          <%= AdminHelpers.icon_link("list", to: ~p"/admin/podcasts/#{@podcast.slug}/episodes", title: "All Episodes") %>
+          <%= AdminHelpers.icon_link("add", to: ~p"/admin/podcasts/#{@podcast.slug}/episodes/new", title: "Add Episode") %>
+        </div>
+    <% end %>
+    <%= if assigns[:filter] && @status == :published do %>
+      <%= AdminHelpers.filter_select(assigns[:filter], all: "All", full: "Full Episodes", bonus: "Bonus Episodes", trailer: "Trailers") %>
+    <% end %>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+  <%= for episode <- @episodes do %>
+    <% podcast = assigns[:podcast] || episode.podcast %>
+    <tr>
+    <%= if assigns[:podcast] do %>
+        <td title={episode.id}><%= episode.slug %></td>
+    <% else %>
+      <td><%= link(podcast.name, to: ~p"/admin/podcasts/#{podcast.slug}/episodes") %></td>
+    <% end %>
+      <td>
+        <%= SharedHelpers.truncate(episode.title, 50) %>
+      <%= if episode.featured do %>
+        &nbsp;&nbsp;
+        <span class="ui tiny blue basic label">Recommended</span>
+      <% end %>
+      <%= if episode.episode_request do %>
+        &nbsp;&nbsp;
+        <%= link("Requested",
+          to: ~p"/admin/podcasts/#{podcast.slug}/episode_requests/#{episode.episode_request}",
+          class: "ui tiny green basic icon label") %>
+      <% end %>
+      </td>
+      <td>
+      <% {main_participants, additional_participants} = episode |> Episode.participants() |> Enum.split(5) %>
+      <%= for person <- main_participants do %>
+        <%= link to: ~p"/admin/people/#{person}?next=#{SharedHelpers.current_path(@conn)}", title: person.name, data: [popup: "true"] do %>
+            <img class="ui avatar image" src={PersonView.avatar_url(person)}>&nbsp;
+        <% end %>
+      <% end %>
+      <%= if Enum.any?(additional_participants) do %>
+          <img
+            class="ui avatar image"
+            src={url(~p"/images/icons/icon-plus.png")}
+            title={"and #{length(additional_participants)} more"}
+            data-popup="true">
+      <% end %>
+      </td>
+    <%= if @status == :draft do %>
+      <td><%= link(AdminHelpers.ts(episode.recorded_at), to: TimeView.time_is_url(episode.recorded_at), rel: "external") %></td>
+      <td><%= TimeView.pretty_date(episode.published_at) %></td>
+    <% else %>
+      <td><%= TimeView.pretty_date(episode.published_at) %></td>
+      <td><%= TimeView.duration(episode.audio_duration) %></td>
+      <td><%= SharedHelpers.pretty_downloads(episode) %></td>
+    <% end %>
+      <td class="right aligned">
+        <div class="ui small basic buttons">
+        <%= if Episode.is_published(episode) do %>
+          <%= AdminHelpers.icon_link("line chart", to: ~p"/admin/podcasts/#{podcast.slug}/episodes/#{episode.slug}", title: "View Stats") %>
+          <%= AdminHelpers.icon_link("refresh", to: ~p"/admin/podcasts/#{podcast.slug}/episodes/#{episode.slug}/transcript", method: :post, title: "Refresh Transcript") %>
+        <% end %>
+
+          <%= AdminHelpers.icon_link("eye", to: show_or_preview_path(podcast, episode), title: "View Episode") %>
+          <%= AdminHelpers.icon_link("edit", to: ~p"/admin/podcasts/#{podcast.slug}/episodes/#{episode.slug}/edit", title: "Edit Episode") %>
+
+        <%= if @status == :draft do %>
+          <%= if episode.recorded_live, do: AdminHelpers.icon_link("image", to: ~p"/live/#{Episode.hashid(episode)}", title: "View live image for YT") %>
+          <%= if episode.doc_url, do: AdminHelpers.icon_link("file alternate", to: episode.doc_url, title: "View Collab Doc", rel: "external") %>
+          <%= AdminHelpers.icon_link("trash", to: ~p"/admin/podcasts/#{podcast.slug}/episodes/#{episode.slug}", title: "Delete Episode", method: :delete, data: [confirm: "Are you sure?"]) %>
+        <% end %>
+        </div>
+      </td>
+    </tr>
+  <% end %>
+  </tbody>
+</table>

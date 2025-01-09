@@ -1,20 +1,20 @@
 defmodule Changelog.Mixfile do
   use Mix.Project
 
-  Code.compile_file("config/secret_or_env.exs")
+  @oban_envs [:prod]
+  if System.get_env("OBAN_LICENSE_KEY") do
+    @oban_envs [:dev, :prod]
+  end
 
   def project do
     [
       app: :changelog,
       version: System.get_env("APP_VERSION", "0.0.1"),
-      elixir: "~> 1.11",
+      elixir: "~> 1.16",
       elixirc_paths: elixirc_paths(Mix.env()),
-      compilers: [:phoenix] ++ Mix.compilers(),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
-      deps: deps(),
-      preferred_cli_env: [coveralls: :test, "coveralls.circle": :test],
-      test_coverage: [tool: ExCoveralls]
+      deps: deps()
     ]
   end
 
@@ -22,7 +22,10 @@ defmodule Changelog.Mixfile do
   #
   # Type `mix help compile.app` for more information.
   def application do
-    [mod: {Changelog.Application, []}, extra_applications: [:logger, :runtime_tools, :iex]]
+    [
+      mod: {Changelog.Application, []},
+      extra_applications: [:logger, :runtime_tools]
+    ]
   end
 
   # Specifies which paths to compile per environment.
@@ -34,53 +37,55 @@ defmodule Changelog.Mixfile do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
-      {:phoenix, "~> 1.5.5"},
-      {:phoenix_pubsub, "~> 2.0"},
-      {:phoenix_html, "~> 2.11"},
-      {:phoenix_live_reload, "~> 1.2"},
-      {:plug_cowboy, "~> 2.0"},
-      # Leaving this here for future dev loops with @akoutmos
-      # {:prom_ex, github: "akoutmos/prom_ex", branch: "master"},
-      {:oban, "~> 2.4.2"},
-      {:prom_ex, "~> 1.0.1"},
-      {:unplug, "~> 0.2.1"},
+      {:phoenix, "~> 1.7.11"},
+      {:phoenix_view, "~> 2.0"},
+      {:phoenix_ecto, "~> 4.4"},
+      {:ecto_sql, "~> 3.10"},
       {:postgrex, ">= 0.0.0"},
+      {:phoenix_html, "~> 3.3"},
+      {:phoenix_live_view, "~> 0.20.2"},
+      {:phoenix_live_reload, "~> 1.2", only: :dev},
+      {:plug_cowboy, "~> 2.5"},
+      {:oban, "~> 2.15"},
+      {:oban_web, "~> 2.10.2", repo: "oban", only: @oban_envs},
       {:timex, "~> 3.0"},
-      {:scrivener_ecto, "~> 2.0"},
-      {:scrivener_html, "~> 1.8", github: "jerodsanto/scrivener_html", branch: "phx-1-5-5"},
+      {:scrivener_ecto, "~> 3.0"},
       {:cmark, "~> 0.6"},
-      {:floki, "~> 0.29.0"},
-      {:html_sanitize_ex, "~> 1.1"},
-      {:phoenix_ecto, "~> 4.0"},
-      {:ecto_sql, "~> 3.0"},
-      {:arc_ecto, "~> 0.11.1"},
+      {:floki, "~> 0.36"},
+      {:waffle_ecto, "~> 0.0"},
       {:ecto_enum, "~> 1.0"},
       {:hashids, "~> 2.0"},
-      {:bamboo_smtp, "~> 2.1.0"},
-      {:httpoison, "~> 1.0", override: true},
+      {:swoosh, "~> 1.16"},
+      {:gen_smtp, "~> 1.0"},
+      {:httpoison, "~> 2.2.1", override: true},
       {:jason, "~> 1.0"},
-      {:con_cache, "~> 0.14.0"},
-      {:exjsx, "~> 3.2.1 or ~> 4.0"},
-      {:ex_aws, "~> 2.0"},
-      {:ex_aws_s3, "~> 2.0"},
-      {:nimble_csv, "~> 1.1.0"},
+      {:con_cache, "~> 1.0.0"},
+      {:ex_aws, "~> 2.2"},
+      {:ex_aws_s3, "~> 2.3"},
+      {:nimble_csv, "~> 1.2.0"},
       {:sweet_xml, "~> 0.6"},
-      {:user_agent_parser, "~> 1.0"},
-      {:quantum, ">= 2.1.0"},
       {:oauth, github: "tim/erlang-oauth"},
+      {:ueberauth, "~> 0.10"},
       {:ueberauth_github, "~> 0.4"},
-      {:ueberauth_twitter, github: "jerodsanto/ueberauth_twitter"},
       {:ex_machina, "~> 2.0"},
-      {:rollbax, "~> 0.8.2"},
-      {:sentry, "~> 8.0"},
+      {:sentry, "~> 10.1"},
       {:html_entities, "~> 0.3"},
-      {:algolia, "~> 0.8.0"},
-      {:tzdata, "~> 1.0.3"},
+      {:tzdata, "~> 1.1.0"},
       {:icalendar, "~> 1.0"},
-      {:shopify, "~> 0.4"},
-      {:credo, "~> 1.4.1", only: [:dev, :test], runtime: false},
-      {:excoveralls, "~> 0.10", only: :test},
-      {:mock, "~> 0.3.0", only: :test}
+      # TODO: find replacement for dead https://github.com/nsweeting/shopify
+      {:shopify, "~> 0.4", github: "ankhers/shopify", branch: "otp24_upgrade"},
+      {:stripity_stripe, "~> 3.2"},
+      {:id3vx, "~> 0.0.1-rc6"},
+      {:xml_builder, "~> 2.1"},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:mock, "~> 0.3.0", only: :test},
+      {:opentelemetry_exporter, "~> 1.0"},
+      {:opentelemetry, "~> 1.0"},
+      {:opentelemetry_api, "~> 1.0"},
+      {:opentelemetry_cowboy, "~> 0.3.0"},
+      {:opentelemetry_ecto, "~> 1.0"},
+      {:opentelemetry_oban, "~> 1.0"},
+      {:opentelemetry_phoenix, "~> 1.0"}
     ]
   end
 
@@ -94,7 +99,8 @@ defmodule Changelog.Mixfile do
     [
       "ecto.setup": ["ecto.create", "ecto.migrate"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
-      test: ["ecto.create --quiet", "ecto.migrate", "test"]
+      test: ["ecto.create --quiet", "ecto.migrate", "test"],
+      "deps.get_dev": ["deps.unlock oban_web oban_met", "deps.get --only dev"]
     ]
   end
 end

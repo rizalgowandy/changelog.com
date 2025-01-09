@@ -4,15 +4,15 @@ defmodule Changelog.NewsQueue do
   require Logger
 
   alias Changelog.{
-    Buffer,
     Cache,
-    EpisodeTracker,
-    # HN,
+    EventLog,
     NewsItem,
     NewsQueue,
     Notifier,
-    Search
+    TypesenseSearch
   }
+
+  alias Changelog.ObanWorkers.FeedUpdater
 
   schema "news_queue" do
     field :position, :float
@@ -150,21 +150,16 @@ defmodule Changelog.NewsQueue do
     true
   end
 
-  def publish(nil) do
-    Logger.info("News: Published bupkis")
-    false
-  end
+  def publish(nil), do: false
 
   defp publish_item(item = %NewsItem{}) do
     item = NewsItem.publish!(item)
     Task.start_link(fn -> NewsItem.subscribe_participants(item) end)
-    Task.start_link(fn -> Search.save_item(item) end)
-    Task.start_link(fn -> Buffer.queue(item) end)
+    Task.start_link(fn -> TypesenseSearch.save_item(item) end)
     Task.start_link(fn -> Notifier.notify(item) end)
-    # Task.start_link(fn -> HN.submit(item) end)
-    Task.start_link(fn -> EpisodeTracker.track(item) end)
+    Task.start_link(fn -> FeedUpdater.queue(item) end)
     Cache.delete(item)
-    Logger.info("News: Published ##{item.id}")
+    EventLog.insert("Published ##{item.id}: #{item.headline}", "NewsQueue")
     true
   end
 
