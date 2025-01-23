@@ -1,9 +1,10 @@
 defmodule ChangelogWeb.Admin.PodcastController do
   use ChangelogWeb, :controller
 
-  alias Changelog.{Cache, Podcast}
+  alias Changelog.{Cache, FeedStat, Podcast}
+  alias Changelog.ObanWorkers.FeedUpdater
 
-  plug :assign_podcast when action in [:show, :edit, :update]
+  plug :assign_podcast when action in [:show, :edit, :update, :feed, :agents]
   plug Authorize, [Policies.Admin.Podcast, :podcast]
   plug :scrub_params, "podcast" when action in [:create, :update]
 
@@ -16,24 +17,31 @@ defmodule ChangelogWeb.Admin.PodcastController do
 
     active =
       Podcast.active()
-      |> Podcast.not_retired()
       |> Podcast.by_position()
       |> Podcast.preload_active_hosts()
       |> Repo.all()
       |> Enum.filter(fn p -> Policies.Admin.Podcast.show(user, p) end)
 
-    retired =
-      Podcast.retired()
+    inactive =
+      Podcast.inactive()
+      |> Podcast.by_position()
+      |> Podcast.preload_active_hosts()
+      |> Repo.all()
+      |> Enum.filter(fn p -> Policies.Admin.Podcast.show(user, p) end)
+
+    archived =
+      Podcast.archived()
       |> Podcast.oldest_first()
       |> Podcast.preload_active_hosts()
       |> Repo.all()
       |> Enum.filter(fn p -> Policies.Admin.Podcast.show(user, p) end)
 
     conn
-    |> assign(:active, active)
     |> assign(:draft, draft)
-    |> assign(:retired, retired)
-    |> assign(:reach, ChangelogWeb.Admin.PageController.reach())
+    |> assign(:active, active)
+    |> assign(:inactive, inactive)
+    |> assign(:archived, archived)
+    |> assign(:downloads, ChangelogWeb.Admin.PageController.downloads())
     |> render(:index)
   end
 
@@ -48,11 +56,12 @@ defmodule ChangelogWeb.Admin.PodcastController do
     case Repo.insert(changeset) do
       {:ok, podcast} ->
         Repo.update(Podcast.file_changeset(podcast, podcast_params))
+        FeedUpdater.queue(podcast)
         Cache.delete(podcast)
 
         conn
         |> put_flash(:result, "success")
-        |> redirect_next(params, Routes.admin_podcast_path(conn, :edit, podcast.slug))
+        |> redirect_next(params, ~p"/admin/podcasts/#{podcast.slug}/edit")
 
       {:error, changeset} ->
         conn
@@ -62,7 +71,7 @@ defmodule ChangelogWeb.Admin.PodcastController do
   end
 
   def show(conn = %{assigns: %{podcast: podcast}}, _params) do
-    redirect(conn, to: Routes.admin_podcast_episode_path(conn, :index, podcast.slug))
+    redirect(conn, to: ~p"/admin/podcasts/#{podcast.slug}/episodes")
   end
 
   def edit(conn = %{assigns: %{podcast: podcast}}, _params) do
@@ -86,18 +95,62 @@ defmodule ChangelogWeb.Admin.PodcastController do
 
     case Repo.update(changeset) do
       {:ok, podcast} ->
+        FeedUpdater.queue(podcast)
         Cache.delete(podcast)
 
         params =
-          replace_next_edit_path(params, Routes.admin_podcast_path(conn, :edit, podcast.slug))
+          replace_next_edit_path(params, ~p"/admin/podcasts/#{podcast.slug}/edit")
 
         conn
         |> put_flash(:result, "success")
-        |> redirect_next(params, Routes.admin_podcast_path(conn, :index))
+        |> redirect_next(params, ~p"/admin/podcasts")
 
       {:error, changeset} ->
         render(conn, :edit, podcast: podcast, changeset: changeset)
     end
+  end
+
+  def feed(conn = %{assigns: %{podcast: podcast}}, _params) do
+    FeedUpdater.queue(podcast)
+
+    conn
+    |> put_flash(:result, "success")
+    |> redirect(to: ~p"/admin/podcasts")
+  end
+
+  def agents(conn = %{assigns: %{podcast: podcast}}, params) do
+    stat =
+      if params["date"] do
+        podcast
+        |> assoc(:feed_stats)
+        |> FeedStat.on_date(params["date"])
+        |> FeedStat.limit(1)
+        |> Repo.one()
+      else
+        podcast
+        |> assoc(:feed_stats)
+        |> FeedStat.newest_first()
+        |> FeedStat.limit(1)
+        |> Repo.one()
+      end
+
+    prev =
+      FeedStat.previous_to(stat)
+      |> FeedStat.newest_first()
+      |> FeedStat.limit(1)
+      |> Repo.one()
+
+    next =
+      FeedStat.next_after(stat)
+      |> FeedStat.newest_last()
+      |> FeedStat.limit(1)
+      |> Repo.one()
+
+    conn
+    |> assign(:stat, stat)
+    |> assign(:prev, prev)
+    |> assign(:next, next)
+    |> render(:agents)
   end
 
   defp assign_podcast(conn = %{params: %{"id" => id}}, _) do

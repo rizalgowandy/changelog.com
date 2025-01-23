@@ -1,7 +1,7 @@
 defmodule ChangelogWeb.Admin.TopicController do
   use ChangelogWeb, :controller
 
-  alias Changelog.Topic
+  alias Changelog.{Fastly, Topic}
 
   plug :assign_topic when action in [:edit, :update, :delete]
   plug Authorize, [Policies.AdminsOnly, :topic]
@@ -30,7 +30,7 @@ defmodule ChangelogWeb.Admin.TopicController do
 
         conn
         |> put_flash(:result, "success")
-        |> redirect_next(params, Routes.admin_topic_path(conn, :edit, topic.slug))
+        |> redirect_next(params, ~p"/admin/topics/#{topic.slug}/edit")
 
       {:error, changeset} ->
         conn
@@ -49,11 +49,12 @@ defmodule ChangelogWeb.Admin.TopicController do
 
     case Repo.update(changeset) do
       {:ok, topic} ->
-        params = replace_next_edit_path(params, Routes.admin_topic_path(conn, :edit, topic.slug))
+        Fastly.purge(topic)
+        params = replace_next_edit_path(params, ~p"/admin/topics/#{topic.slug}/edit")
 
         conn
         |> put_flash(:result, "success")
-        |> redirect_next(params, Routes.admin_topic_path(conn, :index))
+        |> redirect_next(params, ~p"/admin/topics")
 
       {:error, changeset} ->
         conn
@@ -67,7 +68,7 @@ defmodule ChangelogWeb.Admin.TopicController do
 
     conn
     |> put_flash(:result, "success")
-    |> redirect(to: Routes.admin_topic_path(conn, :index))
+    |> redirect(to: ~p"/admin/topics")
   end
 
   defp assign_topic(conn = %{params: %{"id" => slug}}, _) do

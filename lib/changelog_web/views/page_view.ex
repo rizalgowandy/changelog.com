@@ -1,8 +1,8 @@
 defmodule ChangelogWeb.PageView do
   use ChangelogWeb, :public_view
 
-  alias Changelog.{NewsSponsorship, Person, Repo, Sponsor}
-  alias ChangelogWeb.{EpisodeView, NewsItemView, NewsletterView, SponsorView, TimeView}
+  alias Changelog.{Person, Podcast, Repo, Sponsor}
+  alias ChangelogWeb.{EpisodeView, PersonView, SponsorView, TimeView}
 
   def members_count, do: Repo.count(Person.joined())
 

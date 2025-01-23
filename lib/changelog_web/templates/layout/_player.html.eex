@@ -1,42 +1,42 @@
-<div id="player" data-turbolinks-permanent>
+<div id="player">
   <figure class="podcast_player js-player">
     <nav class="podcast_player-nav">
-      <a href="" class="podcast_player-nav-button podcast_player-nav-button--copy js-player-copy-url" title="Copy Timestamp to Clipboard"></a>
+      <button class="podcast_player-nav-button podcast_player-nav-button--copy js-player-copy-url" title="Copy Timestamp to Clipboard"></button>
       <input type="hidden" class="js-player-current-url">
       <button class="podcast_player-nav-button podcast_player-nav-button--hide js-player-hide" title="Hide Player"></button>
       <button class="podcast_player-nav-button podcast_player-nav-button--close js-player-close" title="Close Player"></button>
     </nav>
     <div class="image_border_hack">
-      <img class="podcast_player-art js-player-art">
+      <img class="podcast_player-art js-player-art" src="data:," alt="Player art">
     </div>
     <div class="podcast_player-details">
-      <div class="podcast_player-details-title">
+      <figure class="podcast_player-details-title">
         <span class="js-player-now-playing"></span>
         <figcaption class="js-player-title"></figcaption>
-      </div>
+      </figure>
     </div>
     <div class="podcast_player-buttons">
-      <button class="podcast_player-button podcast_player-button--prev_episode js-player-prev-button" title="Listen to the previous episode">
-        <span class="js-player-prev-number"></span><%= SharedHelpers.lazy_image(Routes.static_url(@conn, "/images/icons/podcast-arrow.svg"), "Previous Episode") %>
+      <button class="podcast_player-button podcast_player-button--prev_chapter js-player-prev-button" title="Skip to the previous chapter">
+        <span class="js-player-prev-chapter"></span><%= SharedHelpers.lazy_image(url(~p"/images/icons/podcast-arrow.svg"), "Previous Chapter", width: 11, height: 20) %>
       </button>
       <button class="podcast_player-button podcast_player-button--back15 js-player-back-button" title="Seek back 15 seconds"></button>
 
       <button class="podcast_player-button podcast_player-button--play js-player-play-button"></button>
 
       <button class="podcast_player-button podcast_player-button--forward15 js-player-forward-button" title="Seek forward 15 seconds"></button>
-      <button class="podcast_player-button podcast_player-button--next_episode js-player-next-button" title="Listen to the next episode">
-        <%= SharedHelpers.lazy_image(Routes.static_url(@conn, "/images/icons/podcast-arrow.svg"), "Next Episode", class: "flip-horizontal") %><span class="js-player-next-number"></span>
+      <button class="podcast_player-button podcast_player-button--next_chapter js-player-next-button" title="Skipt to the next chapter">
+        <%= SharedHelpers.lazy_image(url(~p"/images/icons/podcast-arrow.svg"), "Next Chapter", width: 11, height: 20, class: "flip-horizontal") %><span class="js-player-next-chapter"></span>
       </button>
     </div>
     <form class="podcast_player-slider">
       <div class="range_slider">
         <span class="range_slider-above"><span class="js-player-now-playing"></span></span>
         <div class="range_slider-range_wrap">
-          <input class="range_slider-range js-player-scrubber" type="range" value="0" min="0" max="500"/>
+          <input class="range_slider-range js-player-scrubber" type="range" value="0" min="0" max="500">
           <div class="range_slider-range-track js-player-track"></div>
         </div>
-        <span class="range_slider-below"> <span class="js-player-title"></span>
-          <output><b class="js-player-current">0:00</b> / <span class="js-player-duration">0:00</span></output></span>
+        <span class="range_slider-below"> <span class="js-player-title"></span>&nbsp;<select class="js-chapter-select is-hidden"></select>
+          <output><button class="js-player-speed" title="Change Speed">[1X]</button> <b class="js-player-current">0:00</b><input class="js-player-current-input is-hidden"> / <span class="js-player-duration">0:00</span></output></span>
       </div>
     </form>
   </figure>

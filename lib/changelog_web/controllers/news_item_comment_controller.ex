@@ -23,7 +23,7 @@ defmodule ChangelogWeb.NewsItemCommentController do
         # Only send the normal notification out if the user is an approved commenter
         # Else send only to admins for vetting. The notify/1 function validates the state
         # of the comment and sends it to the appropriate recipients.
-        CommentNotifier.schedule_notification(comment)
+        CommentNotifier.schedule(comment)
 
         if get_format(conn) == "js" do
           comment = NewsItemComment.preload_all(comment)
@@ -37,7 +37,7 @@ defmodule ChangelogWeb.NewsItemCommentController do
           |> render("create_success.js")
         else
           conn
-          |> put_flash(:success, random_success_message())
+          |> put_flash(:success, random_success_message(comment))
           |> redirect(to: ChangelogWeb.Plug.Conn.referer_or_root_path(conn))
         end
 
@@ -67,40 +67,66 @@ defmodule ChangelogWeb.NewsItemCommentController do
       comment = NewsItemComment.preload_all(comment)
       item = comment.news_item
 
-      conn
-      |> put_flash(:success, "Your comment has been updated")
-      |> assign(:item, item)
-      |> assign(:comment, comment)
-      |> assign(:changeset, changeset)
-      |> render("create_update.js")
+      if get_format(conn) == "js" do
+        conn
+        |> put_flash(:success, "Your comment has been updated")
+        |> assign(:item, item)
+        |> assign(:comment, comment)
+        |> assign(:changeset, changeset)
+        |> render("create_update.js")
+      else
+        conn
+        |> put_flash(:success, "Your comment has been updated")
+        |> redirect(to: ChangelogWeb.Plug.Conn.referer_or_root_path(conn))
+      end
     else
       _error ->
-        conn
-        |> put_flash(:error, "Unable to update the selected comment!")
-        |> put_status(:not_found)
-        |> render("create_failure.js")
+        if get_format(conn) == "js" do
+          conn
+          |> put_flash(:error, "Unable to update the selected comment!")
+          |> put_status(:not_found)
+          |> render("create_failure.js")
+        else
+          conn
+          |> put_flash(:error, "Something went wrong")
+          |> send_resp(:not_found, "")
+        end
     end
   end
 
   def update(conn, _) do
-    conn
-    |> put_flash(:error, "Unable to update the selected comment!")
-    |> put_status(:unprocessable_entity)
-    |> render("create_failure.js")
+    if get_format(conn) == "js" do
+      conn
+      |> put_flash(:error, "Unable to update the selected comment!")
+      |> put_status(:unprocessable_entity)
+      |> render("create_failure.js")
+    else
+      conn
+      |> put_flash(:error, "Unable to update the selected comment!")
+      |> redirect(to: ChangelogWeb.Plug.Conn.referer_or_root_path(conn))
+    end
   end
 
   defp update_comment(comment = %NewsItemComment{}, updated_content) do
     NewsItemComment.update_changeset(comment, %{content: updated_content})
   end
 
-  defp random_success_message do
+  defp random_success_message(%{approved: false}) do
+    "Your first one must be approved before it shows up! ⏳"
+  end
+  defp random_success_message(_comment) do
     [
       "Now that's a solid take! ✊",
       "You tell 'em 💥",
       "That comment is fresh to death 🕺",
       "The hottest of hot takes 🔥",
       "Where do you get all those wonderful words? 🤔",
-      "👏👏👏👏👏"
+      "👏👏👏👏👏",
+      "Give yourself a high five! 🙌",
+      "Funky dope comment! ✨",
+      "That's what the crowd wants! 🤩",
+      "It's all about puttin' on a show 👯",
+      "Niiiiiiiiiiice 🔝"
     ]
     |> Enum.random()
   end

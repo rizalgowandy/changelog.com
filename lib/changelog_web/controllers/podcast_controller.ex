@@ -1,41 +1,79 @@
 defmodule ChangelogWeb.PodcastController do
   use ChangelogWeb, :controller
 
-  alias Changelog.{Episode, NewsItem, Podcast, Post}
-  alias ChangelogWeb.Plug.ResponseCache
-
-  plug ResponseCache
+  alias Changelog.{Episode, Podcast, Post, Subscription}
 
   def index(conn, _params) do
     render(conn, :index)
+  end
+
+  def archive(conn, %{"slug" => "news"}) do
+    podcast = get_podcast_by_slug("news")
+
+    issues =
+      podcast
+      |> Podcast.get_episodes()
+      |> Episode.published()
+      |> Episode.newest_first()
+      |> Episode.preload_podcast()
+      |> Repo.all()
+
+    sub_count = Subscription.subscribed_count(podcast)
+
+    conn
+    |> assign(:sub_count, sub_count)
+    |> assign(:podcast, podcast)
+    |> assign(:issues, issues)
+    |> render(:archive, layout: {ChangelogWeb.LayoutView, "news.html"})
+  end
+
+  # Changelog News is the only podcast with an archive
+  def archive(conn, %{"slug" => slug}) do
+    redirect(conn, to: ~p"/#{slug}")
   end
 
   # front the "actual" show function with this one that tries to fetch a
   # podcast, then falls back to find a (legacy) post and redirect appropriately
   def show(conn, params = %{"slug" => slug}) do
     try do
-      podcast = Podcast.get_by_slug!(slug)
+      podcast = get_podcast_by_slug(slug)
       show(conn, params, podcast)
     rescue
       _e in Ecto.NoResultsError ->
         post = Post.published() |> Repo.get_by!(slug: slug)
-        redirect(conn, to: Routes.post_path(conn, :show, post.slug))
+        redirect(conn, to: ~p"/posts/#{post.slug}")
     end
+  end
+
+  # Changelog News gets its own special treatment
+  def show(conn, _params, podcast = %{slug: "news"}) do
+    [latest, previous] =
+      podcast
+      |> Podcast.get_episodes()
+      |> Episode.published()
+      |> Episode.newest_first()
+      |> Episode.limit(2)
+      |> Episode.preload_podcast()
+      |> Repo.all()
+
+    sub_count = Subscription.subscribed_count(podcast)
+
+    conn
+    |> assign(:sub_count, sub_count)
+    |> assign(:podcast, podcast)
+    |> assign(:episode, latest)
+    |> assign(:previous, previous)
+    |> render(:news, layout: {ChangelogWeb.LayoutView, "news.html"})
   end
 
   def show(conn, params, podcast) do
     page =
       podcast
-      |> Podcast.get_news_items()
-      |> NewsItem.published()
-      |> NewsItem.non_feed_only()
-      |> NewsItem.newest_first()
-      |> NewsItem.preload_all()
+      |> Podcast.get_episodes()
+      |> Episode.published()
+      |> Episode.newest_first()
+      |> Episode.preload_all()
       |> Repo.paginate(Map.put(params, :page_size, 30))
-
-    items =
-      page.entries
-      |> Enum.map(&NewsItem.load_object/1)
 
     trailer =
       podcast
@@ -48,16 +86,13 @@ defmodule ChangelogWeb.PodcastController do
 
     conn
     |> assign(:podcast, podcast)
-    |> assign(:list, podcast.slug)
-    |> assign(:items, items)
     |> assign(:trailer, trailer)
     |> assign(:page, page)
-    |> ResponseCache.cache_public(:timer.minutes(5))
     |> render(:show)
   end
 
   def popular(conn, params = %{"slug" => slug}) do
-    podcast = Podcast.get_by_slug!(slug)
+    podcast = get_podcast_by_slug(slug)
 
     page =
       podcast
@@ -65,86 +100,41 @@ defmodule ChangelogWeb.PodcastController do
       |> Episode.published()
       # modern era
       |> Episode.newer_than(~D[2016-10-10])
-      |> Episode.top_reach_first()
+      |> Episode.top_downloaded_first()
+      |> Episode.preload_all()
       |> Episode.exclude_transcript()
-      |> Episode.preload_podcast()
-      |> Repo.paginate(Map.put(params, :page_size, 10))
-
-    # this is handled differently than 'recommended' because 'popular'
-    # is an ordering whereas 'recommended' is a filter
-    items =
-      Enum.map(page.entries, fn episode ->
-        episode
-        |> NewsItem.with_episode()
-        |> NewsItem.preload_all()
-        |> Repo.one()
-        |> NewsItem.load_object(episode)
-      end)
-      |> Enum.reject(&is_nil/1)
+      |> Repo.paginate(Map.put(params, :page_size, 30))
 
     conn
     |> assign(:podcast, podcast)
-    |> assign(:items, items)
     |> assign(:page, page)
     |> assign(:tab, "popular")
     |> render(:show)
   end
 
   def recommended(conn, params = %{"slug" => slug}) do
-    podcast = Podcast.get_by_slug!(slug)
+    podcast = get_podcast_by_slug(slug)
 
     page =
       Podcast.get_episodes(podcast)
       |> Episode.published()
       |> Episode.featured()
+      |> Episode.newest_first()
+      |> Episode.preload_all()
       |> Episode.exclude_transcript()
       |> Repo.paginate(Map.put(params, :page_size, 30))
 
-    items =
-      page.entries
-      |> NewsItem.with_episodes()
-      |> NewsItem.published()
-      |> NewsItem.newest_first()
-      |> NewsItem.preload_all()
-      |> Repo.all()
-      |> Enum.map(&NewsItem.load_object/1)
-
     conn
     |> assign(:podcast, podcast)
-    |> assign(:items, items)
     |> assign(:page, page)
     |> assign(:tab, "recommended")
     |> render(:show)
   end
 
-  def upcoming(conn, params = %{"slug" => slug}) do
-    podcast = Podcast.get_by_slug!(slug)
-
-    page =
-      Podcast.get_episodes(podcast)
-      |> Episode.unpublished()
-      |> NewsItem.newest_last(:recorded_at)
-      |> Episode.preload_all()
-      |> Episode.exclude_transcript()
-      |> Repo.paginate(Map.put(params, :page_size, 10))
-
-    items =
-      page.entries
-      |> Enum.map(fn episode ->
-        item = %NewsItem{
-          type: :audio,
-          headline: episode.title,
-          topics: episode.topics
-        }
-
-        Map.put(item, :object, episode)
-      end)
-
-    conn
-    |> assign(:podcast, podcast)
-    |> assign(:items, items)
-    |> assign(:page, page)
-    |> assign(:tab, "upcoming")
-    |> render(:show)
+  defp get_podcast_by_slug(slug) do
+    case slug do
+      "podcast" -> Podcast.changelog()
+      slug -> Podcast.get_by_slug!(slug)
+    end
   end
 end

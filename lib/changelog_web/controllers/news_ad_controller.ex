@@ -8,7 +8,7 @@ defmodule ChangelogWeb.NewsAdController do
     ad = ad_from_hashid(hashid)
 
     if slug == hashid do
-      redirect(conn, to: Routes.news_sponsored_path(conn, :show, NewsAd.slug(ad)))
+      redirect(conn, to: ~p"/sponsored/#{NewsAd.slug(ad)}")
     else
       render(conn, :show, ad: ad, sponsor: ad.sponsorship.sponsor)
     end
@@ -25,6 +25,12 @@ defmodule ChangelogWeb.NewsAdController do
       end)
     end
 
+    send_resp(conn, 204, "")
+  end
+
+  def visit(conn = %{method: "POST", assigns: %{current_user: user}}, %{"id" => hashid}) do
+    ad = ad_from_hashid(hashid)
+    unless is_admin?(user), do: NewsAd.track_click(ad)
     send_resp(conn, 204, "")
   end
 

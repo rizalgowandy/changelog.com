@@ -1,9 +1,9 @@
 defmodule Changelog.Files.Image do
-  use Changelog.File, [:jpg, :jpeg, :png, :gif, :svg]
+  use Changelog.File, [:jpg, :jpeg, :png, :gif, :svg, :webp]
 
   @versions [:original, :large, :medium, :small]
 
-  def storage_dir(_, {_, scope}), do: expanded_dir("/#{source(scope)}/#{hashed(scope.id)}")
+  def storage_dir(_, {_, scope}), do: "uploads/#{source(scope)}/#{hashed(scope.id)}"
   def filename(version, _), do: version
 
   def transform(:original, _), do: :noaction
@@ -12,7 +12,7 @@ defmodule Changelog.Files.Image do
     case file_type(file) do
       :gif -> :noaction
       :svg -> :noaction
-      _ -> {:convert, "-strip -resize #{dimensions(version)}"}
+      _ -> {:convert, convert_args("-resize #{dimensions(version)}")}
     end
   end
 

@@ -10,10 +10,10 @@ Reply here: <%= comment_url(@item, @comment) %>
 
 Don't want these notifications? Unsubscribe here:
 
-<%= PersonView.opt_out_url(Endpoint, @person, "news", @item.id) %>
+<%= PersonView.opt_out_url(@person, "news", @item.id) %>
 
 💚, Logbot
 
 <%= if String.length(@subscription.context) > 0 do %>
-(You received this email because <%= @subscription.context %>)
+(You received this because <%= @subscription.context %>)
 <% end %>

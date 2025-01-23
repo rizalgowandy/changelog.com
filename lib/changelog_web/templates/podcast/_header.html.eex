@@ -3,7 +3,11 @@
   <div class="show-header-inner">
 
     <div class="show-header-art">
-      <%= SharedHelpers.lazy_image(cover_url(@podcast, :original), "#{@podcast.name} Artwork", width: 490, height: 490) %>
+      <img
+        src="<%= cover_url(@podcast, :medium) %>"
+        alt="<%= @podcast.name %> Artwork"
+        width=440
+        height=440 />
     </div>
 
     <div class="show-header-content">
@@ -12,13 +16,13 @@
       </div>
       <div class="show-header-buttons">
         <%= link("Learn More",
-            title: "Learn More",
-            to: Routes.podcast_path(@conn, :show, @podcast.slug),
+            title: "Learn More about #{@podcast.name}",
+            to: ~p"/#{@podcast.slug}",
             role: "button",
             class: "show-header-buttons-item button_small") %>
         <%= link("Subscribe",
-            title: "Subscribe",
-            to: Routes.podcast_path(@conn, :show, @podcast.slug),
+            title: "Subscribe to #{@podcast.name}",
+            to: ~p"/#{@podcast.slug}",
             role: "button",
             class: "show-header-buttons-item button_small") %>
       </div>

@@ -1,6 +1,8 @@
 defmodule Changelog.Buffer.Content do
+  use ChangelogWeb, :verified_routes
+
   alias Changelog.{Episode, ListKit, NewsItem}
-  alias ChangelogWeb.{Endpoint, NewsItemView, Router}
+  alias ChangelogWeb.{EpisodeView, NewsItemView}
 
   def episode_link(nil), do: nil
   def episode_link(item), do: item.url
@@ -21,29 +23,40 @@ defmodule Changelog.Buffer.Content do
       [
         title_meta(episode),
         guest_meta(episode.guests),
-        host_meta(episode.hosts),
-        topic_meta(item.topics)
+        host_meta(episode.hosts)
       ]
       |> Enum.reject(&is_nil/1)
 
-    if Enum.any?(meta) do
-      episode_emoj = episode_emoji()
+    emoj = episode_emoji()
+    ann = podcast_announcement(episode)
 
+    if Enum.any?(meta) do
       """
-      #{episode_emoj} New episode of #{episode.podcast.name}! #{episode_emoj}
+      #{emoj} #{ann}
 
       #{Enum.join(meta, "\n")}
 
-      💚 #{episode_link(item)}
+      🎧 #{EpisodeView.share_url(episode)}
       """
     else
-      episode_emoj = episode_emoji()
-
       """
-      #{episode_emoj} New episode of #{episode.podcast.name}! #{episode_emoj}
-      💚 #{episode_link(item)}
+      #{emoj} #{ann}
+
+      🎧 #{EpisodeView.share_url(episode)}
       """
     end
+  end
+
+  defp podcast_announcement(%{podcast: %{slug: "podcast"}}) do
+    "New Changelog interview!"
+  end
+
+  defp podcast_announcement(%{podcast: %{slug: "shipit"}}) do
+    "New episode of Ship It!"
+  end
+
+  defp podcast_announcement(%{podcast: %{name: name}}) do
+    "New episode of #{name}!"
   end
 
   def news_item_brief(nil), do: ""
@@ -62,7 +75,7 @@ defmodule Changelog.Buffer.Content do
   def news_item_link(nil), do: nil
 
   def news_item_link(item) do
-    Router.Helpers.news_item_url(Endpoint, :show, NewsItemView.hashid(item))
+    url(~p"/news/#{NewsItemView.hashid(item)}")
   end
 
   def news_item_text(nil), do: ""
@@ -78,13 +91,20 @@ defmodule Changelog.Buffer.Content do
   end
 
   defp news_item_terse_text(item) do
-    [news_item_headline(item), news_item_byline(item), news_item_link(item)]
-    |> ListKit.compact_join("\n")
+    text =
+      [
+        news_item_headline(item),
+        news_item_byline(item)
+      ]
+      |> ListKit.compact_join(" ")
+
+    [text, news_item_link(item)]
+    |> ListKit.compact_join("\n\n")
   end
 
   defp news_item_verbose_text(item) do
     [news_item_headline(item), news_item_meta(item), news_item_link(item)]
-    |> ListKit.compact_join("\n")
+    |> ListKit.compact_join("\n\n")
   end
 
   def post_brief(item), do: news_item_brief(item)
@@ -116,7 +136,7 @@ defmodule Changelog.Buffer.Content do
         source_meta(item),
         topic_meta(item.topics)
       ]
-      |> Enum.reject(&is_nil/1)
+      |> ListKit.compact()
 
     if Enum.any?(meta) do
       Enum.join(meta, "\n")
@@ -126,11 +146,11 @@ defmodule Changelog.Buffer.Content do
   end
 
   defp author_emoji, do: ~w(✍ 🖋 📝 🗣) |> Enum.random()
-  defp episode_emoji, do: ~w(🙌 🎉 🔥 🎧 💥 🚢 🚀) |> Enum.random()
-  defp guest_emoji, do: ~w(🌟 ✨ 💫 🤩 😎) |> Enum.random()
-  defp host_emoji, do: ~w(🎙 ⚡️ 🎤) |> Enum.random()
+  defp episode_emoji, do: ~w(🙌 🎉 🔥 💥 🚢 🚀 🥳 🤘) |> Enum.random()
+  defp guest_emoji, do: ~w(🌟 ✨ 💫 🤩 😎 ) |> Enum.random()
+  defp host_emoji, do: ~w(🎙 ⚡️ 🎤 🫡) |> Enum.random()
   defp source_emoji, do: ~w(📨 📡 📢 🔊) |> Enum.random()
-  defp title_emoji, do: ~w(🗣 💬 💡 💭 📌) |> Enum.random()
+  defp title_emoji, do: ~w(🗣 💬 💡 💚 📌) |> Enum.random()
   defp topic_emoji, do: ~w(🏷 🗂 🗃️ 🗄️) |> Enum.random()
   defp video_emoji, do: ~w(🎞 📽 🎬 🍿) |> Enum.random()
 
@@ -138,20 +158,33 @@ defmodule Changelog.Buffer.Content do
   defp author_meta(%{author: %{twitter_handle: nil}}), do: nil
   defp author_meta(%{author: %{twitter_handle: handle}}), do: "#{author_emoji()} by @#{handle}"
 
+  defp guest_intro([_guest]), do: "featuring"
+  defp guest_intro(_guests), do: "with"
+
   defp guest_meta([]), do: nil
-  defp guest_meta(guests), do: "#{guest_emoji()} #{guest_intro(guests)} #{twitter_list(guests)}"
 
-  defp guest_intro([_guest]),
-    do: ["our guest", "with guest", "special guest", "featuring"] |> Enum.random()
+  defp guest_meta(guests) do
+    [
+      guest_emoji(),
+      guest_intro(guests),
+      twitter_list(guests, " & ")
+    ]
+    |> ListKit.compact_join()
+  end
 
-  defp guest_intro(_guests),
-    do: ["our guests", "with guests", "special guests", "featuring"] |> Enum.random()
+  defp host_intro([_host]), do: ["hosted by", "host"] |> Enum.random()
+  defp host_intro(_hosts), do: ["hosted by", "hosts"] |> Enum.random()
 
   defp host_meta([]), do: nil
-  defp host_meta(hosts), do: "#{host_emoji()} #{host_intro(hosts)} #{twitter_list(hosts)}"
 
-  defp host_intro([_host]), do: ["hosted by", "your host"] |> Enum.random()
-  defp host_intro(_hosts), do: ["hosted by", "with hosts", "your hosts"] |> Enum.random()
+  defp host_meta(hosts) do
+    [
+      host_emoji(),
+      host_intro(hosts),
+      twitter_list(hosts, " & ")
+    ]
+    |> ListKit.compact_join()
+  end
 
   defp source_meta(%{source: nil}), do: nil
   defp source_meta(%{source: %{twitter_handle: nil}}), do: nil
@@ -161,15 +194,29 @@ defmodule Changelog.Buffer.Content do
 
   defp topic_meta([]), do: nil
 
-  defp topic_meta(topics), do: "#{topic_emoji()} #{topic_intro(topics)} #{twitter_list(topics)}"
+  defp topic_meta(topics) do
+    [
+      topic_emoji(),
+      topic_intro(topics),
+      twitter_list(topics)
+    ]
+    |> ListKit.compact_join()
+  end
 
-  defp topic_intro([_topic]), do: ["topic", "tagged"] |> Enum.random()
-  defp topic_intro(_topics), do: ["topics", "tagged"] |> Enum.random()
+  defp topic_intro(_topics), do: [nil, "tagged"] |> Enum.random()
 
-  defp twitter_list(list, delimiter \\ " ") when is_list(list) do
-    list
-    |> Enum.map(&twitterized/1)
-    |> Enum.join(delimiter)
+  # returns a string of twitterized items. If final_delimiter is specified,
+  # the last two items will use it instead of typical space delimiter,
+  # e.g. @jerodsanto & @adamstac
+  defp twitter_list(list, final_delimiter \\ " ") do
+    {first, last_two} =
+      list
+      |> Enum.map(&twitterized/1)
+      |> Enum.split(-2)
+
+    [Enum.join(first, " "), Enum.join(last_two, final_delimiter)]
+    |> ListKit.compact()
+    |> Enum.join(" ")
   end
 
   defp twitterized(%{slug: "go"}), do: "#golang"

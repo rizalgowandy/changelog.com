@@ -1,0 +1,23 @@
+<article class="issue_list-item issue_list-item--sticky js-issue">
+  <%= render(SharedView, "_news_issue_meta.html", issue: @episode) %>
+  <a class="play_button js-play-pause" title="Play Audio" href={EpisodeView.audio_url(@episode)} data-title={@episode.title}>
+    <span class="mono-sm">PLAY</span>
+  </a>
+  <div class="progress_bar" style="--progress: 0%;"></div>
+</article>
+
+<div id="newsletter_iframe-container" class="newsletter_content">
+  <!-- We need the iframe not to scroll. Using a deprecated attribute but not sure how reliable it is. -->
+  <iframe id="newsletter_iframe" title="Newsletter content" src={~p"/news/#{@episode.slug}/email"} scrolling="no" loading="lazy"></iframe>
+</div>
+
+<div class="issue_list-pagination">
+  <article class="issue_list-item issue_list-item--view_all">
+    <div>
+      <h2 class="display-lg"><%= link("View the archive", to: ~p"/news/archive") %></h2>
+    </div>
+  </article>
+  <article class="issue_list-item">
+    <%= render(SharedView, "_news_issue_meta.html", issue: @previous) %>
+  </article>
+</div>

@@ -5,37 +5,8 @@ defmodule ChangelogWeb.EpisodeViewTest do
 
   alias Changelog.Episode
 
-  describe "audio_local_path" do
-    test "is a path on the local file system with relative storage dir" do
-      orig_env = Application.get_env(:arc, :storage_dir)
-      Application.put_env(:arc, :storage_dir, "priv/static")
-      episode = insert(:published_episode) |> stub_audio_file
-      assert audio_local_path(episode) =~ ~r{^priv/static}
-      Application.put_env(:arc, :storage_dir, orig_env)
-    end
-
-    test "is a path on the local file system with absolute storage dir" do
-      orig_env = Application.get_env(:arc, :storage_dir)
-      Application.put_env(:arc, :storage_dir, "/test")
-      episode = insert(:published_episode) |> stub_audio_file
-      assert audio_local_path(episode) =~ ~r{^/test/}
-      Application.put_env(:arc, :storage_dir, orig_env)
-    end
-  end
-
-  describe "audio_path" do
-    test "is hard coded to california.mp3 when episode has no file" do
-      episode = build(:episode)
-      assert audio_path(episode) == "/california.mp3"
-    end
-
-    test "starts with the publicly served path when episode has file" do
-      episode = insert(:published_episode) |> stub_audio_file
-      assert audio_path(episode) =~ ~r{^/uploads/}
-    end
-  end
-
   test "megabytes" do
+    assert megabytes(%Episode{audio_bytes: nil}) == 0
     assert megabytes(%Episode{audio_bytes: 1000}) == 0
     assert megabytes(%Episode{audio_bytes: 1_000_000}) == 1
     assert megabytes(%Episode{audio_bytes: 68_530_176}) == 69
@@ -91,7 +62,7 @@ defmodule ChangelogWeb.EpisodeViewTest do
 
   describe "title_with_guest_focused_subtitle_and_podcast_aside/1" do
     test "it only returns the title when episode is a trailer" do
-      episode = %{title: "This is JS Party", podcast: %{name: "JS Party"}, type: :trailer}
+      episode = %{title: "This is JS Party", podcast: %{name: "JS Party", slug: "jsparty"}, type: :trailer}
       assert "This is JS Party" == title_with_guest_focused_subtitle_and_podcast_aside(episode)
     end
 
@@ -100,7 +71,7 @@ defmodule ChangelogWeb.EpisodeViewTest do
         title: "This is JS Party",
         slug: "123",
         subtitle: nil,
-        podcast: %{name: "JS Party"}
+        podcast: %{name: "JS Party", slug: "jsparty"}
       }
 
       assert "This is JS Party (JS Party #123)" ==

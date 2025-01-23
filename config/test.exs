@@ -1,16 +1,15 @@
-use Mix.Config
+import Config
 
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
 config :changelog, ChangelogWeb.Endpoint,
-  http: [port: 4001],
+  http: [port: 4001, ip: {0, 0, 0, 0, 0, 0, 0, 0}],
   server: false
 
 # Print only warnings and errors during test
-config :logger, level: :warn
+config :logger, level: :warning
 
-# Configures Bamboo
-config :changelog, Changelog.Mailer, adapter: Bamboo.TestAdapter
+config :changelog, Changelog.Mailer, adapter: Swoosh.Adapters.Test
 
 # Configure your database
 config :changelog, Changelog.Repo,
@@ -21,12 +20,4 @@ config :changelog, Changelog.Repo,
   pool: Ecto.Adapters.SQL.Sandbox,
   username: System.get_env("DB_USER", "postgres")
 
-config :changelog, Oban,
-  crontab: false,
-  queues: false,
-  plugins: false
-
-config :rollbax,
-  access_token: "",
-  environment: "test",
-  enabled: :log
+config :changelog, Oban, testing: :manual

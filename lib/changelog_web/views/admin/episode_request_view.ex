@@ -1,9 +1,9 @@
 defmodule ChangelogWeb.Admin.EpisodeRequestView do
   use ChangelogWeb, :admin_view
 
-  alias Changelog.StringKit
+  alias Changelog.{Episode, StringKit}
   alias ChangelogWeb.{PersonView}
-  alias ChangelogWeb.Admin.{PodcastView}
+  alias ChangelogWeb.Admin.{EpisodeView, PodcastView}
 
   def credit(%{pronunciation: pronunciation}) do
     if StringKit.present?(pronunciation) do
@@ -20,21 +20,29 @@ defmodule ChangelogWeb.Admin.EpisodeRequestView do
       " by " <>
       request.submitter.handle <>
       " (on #{date}) " <>
-      pitch_preview(request, 60)
+      SharedHelpers.truncate(request.topics, 60)
   end
 
   def podcast_options do
-    Changelog.Cache.podcasts() |> Enum.map(&{&1.name, &1.id})
+    Changelog.Cache.active_podcasts() |> Enum.map(&{&1.name, &1.id})
   end
 
   def pitch_preview(%{pitch: pitch}, count \\ 80) do
     pitch |> SharedHelpers.md_to_text() |> SharedHelpers.truncate(count)
   end
 
+  def status_label(%{episode: episode}) when is_map(episode) do
+    if Episode.is_public(episode) do
+      content_tag(:span, "Complete", class: "ui tiny blue basic label")
+    else
+      content_tag(:span, "Accepted", class: "ui tiny yellow basic label")
+    end
+  end
+
   def status_label(request) do
     case request.status do
       :fresh -> content_tag(:span, "Fresh", class: "ui tiny green basic label")
-      :declined -> content_tag(:span, "Declined", class: "ui tiny gray basic label")
+      :declined -> content_tag(:span, "Declined", class: "ui tiny basic label")
       :pending -> content_tag(:span, "Pending", class: "ui tiny yellow basic label")
       :failed -> content_tag(:span, "Failed", class: "ui tiny basic label")
     end

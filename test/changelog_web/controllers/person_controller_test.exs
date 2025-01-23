@@ -1,6 +1,7 @@
 defmodule ChangelogWeb.PersonControllerTest do
   use ChangelogWeb.ConnCase
-  use Bamboo.Test
+  use Changelog.EmailCase
+  use Oban.Testing, repo: Changelog.Repo
 
   import Mock
 
@@ -77,16 +78,17 @@ defmodule ChangelogWeb.PersonControllerTest do
           )
         end
 
+      assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :email)
+
       person = Repo.one(from p in Person, where: p.email == "joe@blow.com")
       refute person.public_profile
-      assert_delivered_email(ChangelogWeb.Email.community_welcome(person))
+      assert_email_sent(ChangelogWeb.Email.community_welcome(person))
       assert redirected_to(conn) == Routes.root_path(conn, :index)
       assert count(Person) == count_before + 1
     end
 
-    test "submission with existing email sends email, redirects, but doesn't create new person",
-         %{conn: conn} do
-      existing = insert(:person)
+    test "submission with Changelog News opt-in subscribes you to it as well", %{conn: conn} do
+      news = insert(:podcast, slug: "news")
       count_before = count(Person)
 
       conn =
@@ -95,15 +97,38 @@ defmodule ChangelogWeb.PersonControllerTest do
           {Craisin.Subscriber, [], [subscribe: fn _, _, _ -> nil end]}
         ]) do
           post(conn, Routes.person_path(conn, :join),
+            person: %{email: "joe@blow.com", name: "Joe Blow", handle: "joeblow"},
+            news_subscribe: "on"
+          )
+        end
+
+      assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :email)
+
+      person = Repo.one(from p in Person, where: p.email == "joe@blow.com")
+      assert Subscription.is_subscribed(person, news)
+      assert count(Subscription) == 1
+      assert_email_sent(ChangelogWeb.Email.community_welcome(person))
+      assert redirected_to(conn) == Routes.root_path(conn, :index)
+      assert count(Person) == count_before + 1
+    end
+
+    test "submission with existing email re-renders with errors",
+         %{conn: conn} do
+      existing = insert(:person)
+      count_before = count(Person)
+
+      conn =
+        with_mock(Changelog.Captcha, verify: fn _ -> true end) do
+          post(conn, Routes.person_path(conn, :join),
             person: %{email: existing.email, name: "Joe Blow", handle: "joeblow"}
           )
         end
 
-      existing = Repo.one(from p in Person, where: p.email == ^existing.email)
+      assert %{success: 0, failure: 0} = Oban.drain_queue(queue: :email)
 
-      assert_delivered_email(ChangelogWeb.Email.community_welcome(existing))
-      assert redirected_to(conn) == Routes.root_path(conn, :index)
+      assert html_response(conn, 200) =~ ~r/Member exists with that email address/i
       assert count(Person) == count_before
+      assert existing.name != "Joe Blow"
     end
   end
 
@@ -125,7 +150,7 @@ defmodule ChangelogWeb.PersonControllerTest do
       ]) do
         conn = post(conn, Routes.person_path(conn, :subscribe), email: "joe@blow.com")
         assert called(Changelog.Captcha.verify(:_))
-        assert redirected_to(conn) == Routes.person_path(conn, :subscribe, "weekly")
+        assert redirected_to(conn) == Routes.person_path(conn, :subscribe, "news")
       end
     end
   end
@@ -144,14 +169,16 @@ defmodule ChangelogWeb.PersonControllerTest do
       ]) do
         count_before = count(Person)
 
-        conn = post(conn, Routes.person_path(conn, :subscribe), email: "joe@blow.com")
+        conn = post(conn, Routes.person_path(conn, :subscribe), email: "joe@blow.com", name: "", to: "nightly")
 
         person = Repo.one(from p in Person, where: p.email == "joe@blow.com")
         refute person.public_profile
-        assert called(Craisin.Subscriber.subscribe(Newsletters.weekly().list_id, :_))
+        assert called(Craisin.Subscriber.subscribe(Newsletters.nightly().id, :_))
 
-        assert_delivered_email(
-          ChangelogWeb.Email.subscriber_welcome(person, Newsletters.weekly())
+        assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :email)
+
+        assert_email_sent(
+          ChangelogWeb.Email.subscriber_welcome(person, Newsletters.nightly())
         )
 
         assert redirected_to(conn) == Routes.root_path(conn, :index)
@@ -174,9 +201,11 @@ defmodule ChangelogWeb.PersonControllerTest do
 
         existing = Repo.one(from p in Person, where: p.email == ^existing.email)
 
-        assert called(Craisin.Subscriber.subscribe(Newsletters.nightly().list_id, :_))
+        assert called(Craisin.Subscriber.subscribe(Newsletters.nightly().id, :_))
 
-        assert_delivered_email(
+        assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :email)
+
+        assert_email_sent(
           ChangelogWeb.Email.subscriber_welcome(existing, Newsletters.nightly())
         )
 
@@ -206,10 +235,36 @@ defmodule ChangelogWeb.PersonControllerTest do
 
         person = Repo.one(from p in Person, where: p.email == "joe@blow.com")
 
-        assert_delivered_email(ChangelogWeb.Email.subscriber_welcome(person, podcast))
+        assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :email)
+
+        assert_email_sent(ChangelogWeb.Email.subscriber_welcome(person, podcast))
         assert redirected_to(conn) == Routes.root_path(conn, :index)
         assert count(Person) == count_before + 1
         assert count(Subscription) == 1
+      end
+    end
+
+    test "submission with Changelog News opt-in subscribes you to it as well", %{conn: conn} do
+      news = insert(:podcast, slug: "news")
+
+      with_mocks([
+        {Changelog.Captcha, [], [verify: fn _ -> true end]}
+      ]) do
+        podcast = insert(:podcast)
+        count_before = count(Person)
+
+        conn =
+          post(conn, Routes.person_path(conn, :subscribe), email: "joe@blow.com", news_subscribe: "on", to: podcast.slug)
+
+        person = Repo.one(from p in Person, where: p.email == "joe@blow.com")
+
+        assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :email)
+
+        assert_email_sent(ChangelogWeb.Email.subscriber_welcome(person, podcast))
+        assert Subscription.is_subscribed(person, news)
+        assert redirected_to(conn) == Routes.root_path(conn, :index)
+        assert count(Person) == count_before + 1
+        assert count(Subscription) == 2
       end
     end
 
@@ -229,7 +284,9 @@ defmodule ChangelogWeb.PersonControllerTest do
 
       existing = Repo.one(from p in Person, where: p.email == ^existing.email)
 
-      assert_delivered_email(ChangelogWeb.Email.subscriber_welcome(existing, podcast))
+      assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :email)
+
+      assert_email_sent(ChangelogWeb.Email.subscriber_welcome(existing, podcast))
       assert redirected_to(conn) == Routes.root_path(conn, :index)
       assert count(Person) == count_before
       assert count(Subscription) == 1

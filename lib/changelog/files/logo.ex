@@ -5,7 +5,7 @@ defmodule Changelog.Files.Logo do
 
       @versions [:original, :large, :medium, :small]
 
-      def storage_dir(_, {_, scope}), do: expanded_dir("/logos/#{hashed(scope.id)}")
+      def storage_dir(_, {_, scope}), do: "uploads/logos/#{hashed(scope.id)}"
       def filename(version, _), do: "#{unquote(prefix)}_logo_#{version}"
 
       def transform(:original, _), do: :noaction
@@ -14,7 +14,7 @@ defmodule Changelog.Files.Logo do
         if file_type(file) == :svg do
           :noaction
         else
-          {:convert, "-strip -resize #{dimensions(version)} -format png", :png}
+          {:convert, convert_args("-resize #{dimensions(version)}")}
         end
       end
 

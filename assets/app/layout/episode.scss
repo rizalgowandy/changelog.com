@@ -96,6 +96,10 @@
         }
       }
 
+      &-cta {
+        margin-top: $mobile-spacing;
+      }
+
       &-sponsors {
         margin: 0 0 $base-spacing;
 
@@ -136,9 +140,10 @@
 
       &-meta {
         font-family: $code;
-        font-size: 0.8125em;
+        font-size: 0.78125em;
         margin-top: $base-spacing;
         text-align: left;
+        line-height: 2em;
 
         @include breakpoint(640px) {
           display: flex;
@@ -171,7 +176,7 @@
 
         &,
         a {
-          color: $medium-grey;
+          color: $dark-grey;
         }
         a:hover { color: $black; }
       }

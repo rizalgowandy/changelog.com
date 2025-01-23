@@ -40,11 +40,7 @@
     bottom: 0;
     left: 0;
     overflow: auto;
-    align-items: flex-start;
-
-    @media (min-width: $smartphone + 100) {
-      align-items: center;
-    }
+    align-items: center;
   }
 
   &-wrap {
@@ -65,12 +61,6 @@
 
     @media (min-width: 760px) {
       width: 50%;
-    }
-
-    &-lead_in {
-      @extend %display-font;
-      color: $medium-grey;
-      margin: 0 0 0.5em;
     }
 
     &-heading {
@@ -96,9 +86,7 @@
     padding: 0;
 
     li {
-      @extend %display-font;
       display: block;
-      font-family: $display;
       font-size: 1.15em;
       line-height: 1.25em;
       margin: 0.75em 0;

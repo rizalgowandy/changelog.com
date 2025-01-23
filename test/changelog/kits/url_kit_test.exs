@@ -3,10 +3,10 @@ defmodule Changelog.UrlKitTest do
 
   alias Changelog.UrlKit
 
-  describe "get_author" do
+  describe "get_author/1" do
     test "defaults to nil" do
-      assert UrlKit.get_source(nil) == nil
-      assert UrlKit.get_source("https://test.com") == nil
+      assert UrlKit.get_author(nil) == nil
+      assert UrlKit.get_author("https://test.com") == nil
     end
 
     test "returns the author when a match is found in the db" do
@@ -16,7 +16,7 @@ defmodule Changelog.UrlKitTest do
     end
   end
 
-  describe "is_youtube" do
+  describe "is_youtube/1" do
     test "is true for youtube URLS" do
       assert UrlKit.is_youtube("https://youtu.be/7msERxu7ivg")
       assert UrlKit.is_youtube("https://www.youtube.com/watch?v=7msERxu7ivg")
@@ -28,7 +28,7 @@ defmodule Changelog.UrlKitTest do
     end
   end
 
-  describe "get_object_id" do
+  describe "get_object_id/2" do
     test "defaults to nil" do
       assert is_nil(UrlKit.get_object_id(:link, nil))
     end
@@ -52,9 +52,13 @@ defmodule Changelog.UrlKitTest do
     test "returns nil when type has no known objects" do
       assert is_nil(UrlKit.get_object_id(:project, "https://test.com"))
     end
+
+    test "returns nil when hosted on a sub-domain" do
+      assert is_nil(UrlKit.get_object_id(:link, "https://merch.changelog.com/products/changelog-sticker-pack"))
+    end
   end
 
-  describe "get_source" do
+  describe "get_source/1" do
     test "defaults to nil" do
       assert UrlKit.get_source(nil) == nil
       assert UrlKit.get_source("https://test.com") == nil
@@ -74,7 +78,7 @@ defmodule Changelog.UrlKitTest do
     end
   end
 
-  describe "get_type" do
+  describe "get_type/1" do
     test "defaults to link" do
       assert UrlKit.get_type(nil) == :link
       url = "https://example.com/whatevs?oh=yeah"
@@ -109,7 +113,7 @@ defmodule Changelog.UrlKitTest do
     end
   end
 
-  describe "get_youtube_id" do
+  describe "get_youtube_id/1" do
     test "defaults to nil" do
       assert is_nil(UrlKit.get_youtube_id("https://vimeo.com/239702317"))
     end
@@ -125,7 +129,7 @@ defmodule Changelog.UrlKitTest do
     end
   end
 
-  describe "normalize_url" do
+  describe "normalize_url/1" do
     test "defaults to nil" do
       assert UrlKit.normalize_url(nil) == nil
     end
@@ -135,7 +139,7 @@ defmodule Changelog.UrlKitTest do
       assert UrlKit.normalize_url(url) == url
     end
 
-    test "removes UTM params" do
+    test "removes UTM params/1" do
       url =
         "https://www.theverge.com/2017/11/7/16613234/next-level-ar-vr-memories-holograms-8i-actress-shoah-foundation?utm_campaign=theverge"
 
@@ -146,11 +150,41 @@ defmodule Changelog.UrlKitTest do
     end
   end
 
-  describe "sans_scheme" do
+  describe "sans_cache_buster/1" do
+    test "it removes the cache buster added by waffle, leaves the rest" do
+      url = "https://cdn.changelog.com/uploads/founderstalk/83/founders-talk-83.mp3?v=12345"
+      sans = UrlKit.sans_cache_buster(url)
+      assert sans == "https://cdn.changelog.com/uploads/founderstalk/83/founders-talk-83.mp3"
+    end
+  end
+
+  describe "sans_scheme/1" do
     test "it removes the scheme, but leaves everything else" do
       url = "https://news.ycombinator.com/item?id=18120667"
       sans = UrlKit.sans_scheme(url)
       assert sans == "news.ycombinator.com/item?id=18120667"
+    end
+  end
+
+  describe "sans_query/1" do
+    test "it removes all query params" do
+      url = "https://news.ycombinator.com/item?id=18120667"
+      sans = UrlKit.sans_query(url)
+      assert sans == "https://news.ycombinator.com/item"
+    end
+  end
+
+  describe "via_scribe/1" do
+    test "it works on medium domain" do
+      url = "https://medium.com/@user/my-post-09a6af907a2"
+      scribed = UrlKit.via_scribe(url)
+      assert scribed == "https://scribe.rip/@user/my-post-09a6af907a2"
+    end
+
+    test "it works on custom domains too" do
+      url = "https://example.com/my-post-09a6af907a2"
+      scribed = UrlKit.via_scribe(url)
+      assert scribed == "https://scribe.rip/my-post-09a6af907a2"
     end
   end
 end

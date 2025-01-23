@@ -4,8 +4,8 @@
     <input name="q" type="text" placeholder="Search Changelog..." value="<%= @query %>" autofocus />
 
     <div class="search-form-footer">
-      <a href="https://www.algolia.com/?utm_source=changelog&utm_campaign=changelog-search" class="search-form-footer-algolia">
-        Search by <img src="/images/icons/algolia.svg" alt="Algolia" width="75" height="20">
+      <a href="https://typesense.org/?utm_source=changelog&utm_campaign=changelog-search&utm_medium=referral" class="search-form-footer-typesense">
+        Search by <img src="<%= url(~p"/images/icons/typesense.svg") %>" alt="Typesense" width="89" height="20">
       </a>
 
       <%= if @page.total_entries > 0 do %>
@@ -13,7 +13,7 @@
       <% else %>
         <%= if String.length(@query) != 0 do %>
           <p class="search-form-footer-results">
-            There are no results for “<%= @query %>”.
+            Sorry, we didn't find anything. 😔
           </p>
         <% end %>
       <% end %>

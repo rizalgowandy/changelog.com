@@ -27,7 +27,7 @@ defmodule Changelog.PersonTest do
 
   test "admin_update_changeset with a local file path image URL attribute" do
     person = insert(:person)
-    local_file_path = File.cwd!() <> "/test/fixtures/avatar600x600.png"
+    local_file_path = fixtures_path("/images/avatar600x600.png")
     attrs = Map.put(@valid_attrs, :avatar, local_file_path)
 
     changeset = Person.admin_update_changeset(person, attrs)
@@ -42,7 +42,7 @@ defmodule Changelog.PersonTest do
 
     assert encoded == "6A656E6E7940686974732E636F6D7C38363735333039"
 
-    assert ["jenny@hits.com", "8675309"] = Person.decoded_data(encoded)
+    assert {:ok, ["jenny@hits.com", "8675309"]} = Person.decoded_data(encoded)
   end
 
   describe "get_by_ueberauth" do

@@ -26,19 +26,19 @@ body.embed {
   }
 
   &-site_link {
-    background: url("/images/brand/changelog-mark-only.svg") center no-repeat;
+    background: url("../images/brand/changelog-mark-only.svg") center no-repeat;
     background-size: contain;
     display: block;
     height: 30px;
     position: absolute;
-    right: $gutter / 2;
+    right: calc($gutter / 2);
     text-indent: -9999px;
     top: 1rem;
     width: 30px;
     z-index: 4;
 
     body.embed--day & {
-      background: url("/images/brand/changelog-mark-dark.svg") center no-repeat;
+      background: url("../images/brand/changelog-mark-dark.svg") center no-repeat;
       background-size: contain;
     }
 
@@ -50,7 +50,7 @@ body.embed {
   }
 
   &-toggle_nav {
-    background: url("/images/icons/embed-more.svg") center no-repeat;
+    background: url("../images/icons/embed-more.svg") center no-repeat;
     background-size: 20px;
     display: block;
     height: 30px;
@@ -60,7 +60,7 @@ body.embed {
     z-index: 99;
 
     .episode_player.nav-open & {
-      background: url("/images/icons/icon-close.svg") center no-repeat;
+      background: url("../images/icons/icon-close.svg") center no-repeat;
       background-size: 15px;
     }
   }
@@ -149,7 +149,7 @@ body.embed {
   }
 
   &-slider {
-    padding: 0 $gutter / 2;
+    padding: 0 calc($gutter / 2);
 
     @media (min-width: $smartphone) {
       padding: 0 $gutter;
@@ -210,7 +210,7 @@ body.embed {
     &-button {
       @include large-play-button(".episode_player", $gutter, $button_size, $button_spacing);
       display: block;
-      left: $gutter / 2;
+      left: calc($gutter / 2);
       margin-right: 2rem;
       margin-top: -$gutter;
       padding: 0;

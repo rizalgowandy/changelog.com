@@ -1,0 +1,101 @@
+<div class="page_basic">
+  <%= render("_nav.html", assigns) %>
+
+  <div class="account_ctas">
+    <div class="account_ctas-item">
+      <img class="account_ctas-item-icon" src={url(~p"/images/podcasts/plusplus-medium.png")} width="50" height="50" alt="Changelog++ Art"/>
+
+      <div class="account_ctas-item-info">
+      <%= if @current_user.active_membership do %>
+        <h3>It's better!</h3>
+
+        <p>Thank you for supporting our work with your hard-earned cash! <strong>Try it out:</strong> You can now create and manage your own <strong>custom feeds</strong> right here on changelog.com.</p>
+
+        <div class="account_ctas-item-info-buttons">
+          <%= link("Launch Supercast", to: "https://changelog.com/++", target: "_blank") %>
+          <%= link("Manage Feeds", to: ~p"/~/feeds") %>
+        </div>
+      <% else %>
+        <h3>Join Changelog++</h3>
+        <p>The <strong>best way</strong> to directly support our work! Save time by making <strong>the ads disappear</strong>, get <strong>bonus content</strong> like extended episodes, <strong>level-up</strong> the bitrate on our mp3s, and more!</p>
+
+        <div class="account_ctas-item-info-buttons">
+          <%= link("Check it Out", to: "https://changelog.com/++", target: "_blank") %>
+        </div>
+      <% end %>
+      </div>
+    </div>
+
+    <div class="account_ctas-item">
+      <img class="account_ctas-item-icon" src={url(~p"/images/content/community/zulip-icon-circle.svg")} width="50" height="50" alt="Zulip Circle Icon"/>
+
+      <div class="account_ctas-item-info">
+        <h3>Zulip Chat</h3>
+        <p>Connect with like-minded developers from all over the world. Hang with us & discuss past/future episodes. Be the first to hear about upcoming projects. This is the community you've been looking for.</p>
+
+        <div class="account_ctas-item-info-buttons">
+          <%= link("Request Invite", to: ~p"/~/zulip", method: :post) %>
+          <%= link("Launch Zulip", to: Application.get_env(:changelog, :zulip_url), target: "_blank") %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <a id="subscriptions" class="anchor"></a>
+  <div class="account_subscriptions">
+  <% podcast_newsletter_subs = podcasts_with_newsletter_subs(@podcasts, @current_user) %>
+  <%= for podcast <- podcast_newsletter_subs do %>
+    <div class="account_subscriptions-item">
+      <div class="account_subscriptions-item-info">
+        <h3><%= podcast.name %></h3>
+        <p><%= podcast.description %></p>
+        <p class="account_subscriptions-item-info-meta">1 email per week — Delivered on Mondays</p>
+      </div>
+
+      <div class="account_subscriptions-item-button">
+        <%= newsletter_link(podcast, assigns) %>
+      </div>
+    </div>
+  <% end %>
+    <div class="account_subscriptions-item">
+      <div class="account_subscriptions-item-info">
+        <h3>Changelog Nightly</h3>
+        <p>Our automated nightly email powered by GitHub Archive that unearths the hottest new repos trending on GitHub before they blow up.</p>
+        <p class="account_subscriptions-item-info-meta">7 emails per week — Delivered daily at 10pm US Central</p>
+      </div>
+      <div class="account_subscriptions-item-button">
+        <%= newsletter_link(Changelog.Newsletters.nightly(), assigns) %>
+      </div>
+    </div>
+    <div class="account_subscriptions-item">
+      <div class="account_subscriptions-item-info">
+        <h3>Podcast emails</h3>
+        <p>Get notified as soon as an episode is published. Subscribe to as many as you’d like.</p>
+        <p class="account_subscriptions-item-info-meta">Delivered immediately each time a new episode is published</p>
+      </div>
+      <% podcasts_subs = podcasts_with_subs(@podcasts, @current_user) %>
+      <div class="account_subscriptions-item-button">
+      <%= if Enum.any?(podcasts_subs, fn(p) -> !p.is_subscribed end) do %>
+        <a href="javascript:void(0);" class="js-subscribe-all">Collect 'em all</a>
+      <% end %>
+      </div>
+      <div class="account_subscriptions-list">
+        <%= for podcast <- podcasts_subs do %>
+          <div class="account_subscriptions-list-item">
+            <img class="account_subscriptions-list-item-icon" src={PodcastView.cover_url(podcast, :medium)} width="50" height="50" alt={podcast.name}>
+            <p class="account_subscriptions-list-item-title"><%= podcast.name %></p>
+            <div class="account_subscriptions-list-item-toggle toggle toggle--light">
+              <input
+                type="checkbox"
+                class="check js-toggle-subscription"
+                data-slug={podcast.slug}
+                checked={podcast.is_subscribed}
+              />
+              <div class="switch"></div>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>

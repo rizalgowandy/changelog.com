@@ -1,7 +1,7 @@
 defmodule ChangelogWeb.TopicController do
   use ChangelogWeb, :controller
 
-  alias Changelog.{NewsItem, Topic}
+  alias Changelog.{Episode, Topic}
 
   def index(conn, params) do
     page =
@@ -18,69 +18,29 @@ defmodule ChangelogWeb.TopicController do
     topic = Repo.get_by!(Topic, slug: slug)
 
     page =
-      NewsItem
-      |> NewsItem.with_topic(topic)
-      |> NewsItem.published()
-      |> NewsItem.newest_first()
-      |> NewsItem.preload_all()
+      topic
+      |> assoc(:episodes)
+      |> Episode.published()
+      |> Episode.newest_first()
+      |> Episode.exclude_transcript()
+      |> Episode.preload_all()
       |> Repo.paginate(params)
-
-    items =
-      page.entries
-      |> Enum.map(&NewsItem.load_object/1)
 
     conn
     |> assign(:topic, topic)
-    |> assign(:items, items)
     |> assign(:page, page)
     |> render(:show)
   end
 
-  def news(conn, params = %{"slug" => slug}) do
-    topic = Repo.get_by!(Topic, slug: slug)
-
-    page =
-      NewsItem
-      |> NewsItem.with_topic(topic)
-      |> NewsItem.non_audio()
-      |> NewsItem.published()
-      |> NewsItem.newest_first()
-      |> NewsItem.preload_all()
-      |> Repo.paginate(params)
-
-    items =
-      page.entries
-      |> Enum.map(&NewsItem.load_object/1)
-
+  def news(conn, %{"slug" => slug}) do
     conn
-    |> assign(:topic, topic)
-    |> assign(:items, items)
-    |> assign(:page, page)
-    |> assign(:tab, "news")
-    |> render(:show)
+    |> put_status(301)
+    |> redirect(to: ~p"/topic/#{slug}")
   end
 
-  def podcasts(conn, params = %{"slug" => slug}) do
-    topic = Repo.get_by!(Topic, slug: slug)
-
-    page =
-      NewsItem
-      |> NewsItem.with_topic(topic)
-      |> NewsItem.audio()
-      |> NewsItem.published()
-      |> NewsItem.newest_first()
-      |> NewsItem.preload_all()
-      |> Repo.paginate(params)
-
-    items =
-      page.entries
-      |> Enum.map(&NewsItem.load_object/1)
-
+  def podcasts(conn, %{"slug" => slug}) do
     conn
-    |> assign(:topic, topic)
-    |> assign(:items, items)
-    |> assign(:page, page)
-    |> assign(:tab, "podcasts")
-    |> render(:show)
+    |> put_status(301)
+    |> redirect(to: ~p"/topic/#{slug}")
   end
 end

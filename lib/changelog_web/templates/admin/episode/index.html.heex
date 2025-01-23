@@ -1,0 +1,69 @@
+<div class="ui basic segment">
+  <h1 class="ui dividing header">
+    <%= link("Podcasts", to: ~p"/admin/podcasts") %>
+    <%= render(PodcastView, "_dropdown_list.html", assigns) %>
+    <%= @podcast.name %>
+  </h1>
+
+  <div class="actions right">
+    <div class="ui basic buttons">
+      <%= AdminHelpers.icon_link("youtube", to: ~p"/admin/podcasts/#{@podcast.slug}/youtube", title: "YouTube Stuff") %>
+      <%= AdminHelpers.icon_link("eye", to: ~p"/#{@podcast.slug}", title: "View Public", rel: "external") %>
+      <%= AdminHelpers.icon_link("edit", to: ~p"/admin/podcasts/#{@podcast.slug}/edit", title: "Edit") %>
+    </div>
+
+    <span class="ui calendar" data-scheduled={Jason.encode!(Enum.map(@drafts, &(&1.recorded_at)))}>
+      <button class="ui basic icon button" title="View Schedule"><i class="calendar icon"></i></button>
+    </span>
+
+    <%= link to: ~p"/admin/podcasts/#{@podcast.slug}/episodes/new", class: "ui right floated primary basic button" do %>
+      <i class="icon unmute"></i>
+      Add Episode
+    <% end %>
+  </div>
+</div>
+
+<%= if Enum.any?(@drafts) do %>
+<div class="ui basic segment">
+  <h2 class="ui header">Drafts</h2>
+  <%= render("_table.html", Map.merge(assigns, %{status: :draft, podcast: @podcast, episodes: @drafts, actions: false})) %>
+</div>
+<% end %>
+
+<%= if Podcast.is_news(@podcast) && Enum.any?(@submitted) do %>
+<div class="ui basic segment">
+  <h2 id="submitted" class="ui header">Submitted</h2>
+  <%= render(ChangelogWeb.Admin.NewsItemView, "_table.html", Map.merge(assigns, %{status: :submitted, items: @submitted})) %>
+</div>
+<% end %>
+
+<%= if Enum.any?(@scheduled) do %>
+<div class="ui basic segment">
+  <h2 class="ui header">Scheduled</h2>
+  <%= render("_table.html", Map.merge(assigns, %{status: :scheduled, podcast: @podcast, episodes: @scheduled, actions: false})) %>
+</div>
+<% end %>
+
+<%= if Enum.any?(@episode_requests) do %>
+<div class="ui basic segment">
+  <h2 class="ui header"><%= link("Requests", to: ~p"/admin/podcasts/#{@podcast.slug}/episode_requests") %>
+  &raquo;
+  Fresh (<%= length(@episode_requests) %>)
+  </h2>
+  <%= render(EpisodeRequestView, "_table.html", Map.merge(assigns, %{requests: @episode_requests, status: :fresh})) %>
+</div>
+<% end %>
+
+<div class="ui basic segment">
+  <%= render("_downloads.html", assigns) %>
+</div>
+
+<%= if Enum.any?(@episodes) do %>
+<div class="ui basic segment">
+  <div class="performance-chart" data-source={Routes.admin_podcast_performance_path(@conn, :performance, @podcast.slug, ids: Enum.map(@episodes, &(&1.id)))}></div>
+
+  <h2 class="ui header">Published</h2>
+  <%= render("_table.html", Map.merge(assigns, %{status: :published, podcast: @podcast, episodes: @episodes, actions: false})) %>
+  <%= render(SharedView, "_pagination.html", assigns) %>
+</div>
+<% end %>

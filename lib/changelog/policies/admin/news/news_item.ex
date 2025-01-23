@@ -3,9 +3,10 @@ defmodule Changelog.Policies.Admin.NewsItem do
 
   def create(actor), do: is_admin(actor) || is_editor(actor)
   def index(actor), do: is_admin(actor) || is_editor(actor)
+  def accept(actor, _item), do: is_admin(actor)
   def update(actor, item), do: is_admin(actor) || is_logger(actor, item)
-  def move(actor, _), do: is_admin(actor)
-  def decline(actor, _), do: is_admin(actor)
+  def move(actor, _item), do: is_admin(actor)
+  def decline(actor, _item), do: is_admin(actor)
   def unpublish(actor, item), do: is_admin(actor) || is_logger(actor, item)
 
   def delete(actor, item = %{status: status}) do

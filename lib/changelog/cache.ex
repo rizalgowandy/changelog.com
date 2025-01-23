@@ -4,7 +4,7 @@ defmodule Changelog.Cache do
   """
   require Logger
 
-  alias Changelog.{Episode, Metacast, NewsItem, Podcast, Post, Repo}
+  alias Changelog.{Episode, NewsItem, Podcast, Post, Repo}
 
   def cache_name, do: :app_cache
 
@@ -13,6 +13,14 @@ defmodule Changelog.Cache do
   def delete(episode = %Episode{}) do
     episode = Episode.preload_podcast(episode)
     delete_prefix("/#{episode.podcast.slug}/#{episode.slug}")
+
+    if Podcast.is_a_changelog_pod(episode.podcast) do
+      delete_prefix("/podcast")
+    end
+
+    if Podcast.is_changelog(episode.podcast) do
+      delete_prefix("/interviews")
+    end
 
     if Episode.is_public(episode) do
       delete_prefix(episode.podcast.slug)
@@ -27,13 +35,8 @@ defmodule Changelog.Cache do
     delete(item.object)
   end
 
-  def delete(metacast = %Metacast{}) do
-    delete("metacasts")
-    delete_prefix("/#{metacast.slug}")
-  end
-
   def delete(podcast = %Podcast{}) do
-    delete("podcasts")
+    delete_prefix("podcasts")
     delete_prefix("/#{podcast.slug}")
   end
 
@@ -86,13 +89,25 @@ defmodule Changelog.Cache do
     |> Enum.map(&elem(&1, 0))
   end
 
+  def active_podcasts do
+    get_or_store("podcasts_active", :infinity, fn ->
+      Enum.filter(podcasts(), &Podcast.is_active/1)
+    end)
+  end
+
   def podcasts do
-    get_or_store("podcasts", :infinity, fn ->
-      Podcast.active()
+    get_or_store("podcasts_all", :infinity, fn ->
+      Podcast.public()
       |> Podcast.by_position()
       |> Podcast.preload_active_hosts()
       |> Podcast.preload_retired_hosts()
       |> Repo.all()
+    end)
+  end
+
+  def vanity_domains do
+    get_or_store("vanity", :infinity, fn ->
+      Podcast.with_vanity_domain() |> Repo.all()
     end)
   end
 end

@@ -1,0 +1,116 @@
+<%= render(SharedView, "_drift_js.html") %>
+
+<article class="article">
+  <div class="richtext">
+    <h1>Sponsorship Pricing</h1>
+
+    <p>Every day we reach developers around the world through our network of world-class podcasts.</p>
+    <p>With <strong>more than 650K monthly listens network-wide</strong>, we can help you connect with developers in ways no other form of advertising is capable of. We literally speak to developers, <em>globally</em>.</p>
+    <p>If you'd like to capture the attention of the software development community, <em>we can help you</em>.</p>
+    <p>Email <a href="mailto:adam@changelog.com">adam@changelog.com</a> or call <a href="tel:1-888-974-2454">888-974-CHLG (2454)</a> to get started.</p>
+
+    <hr>
+
+    <a id="podcast" class="anchor"></a>
+    <h2>The Changelog</h2>
+
+    <p>The Changelog is our flagship podcast hosted by Adam Stacoviak (Editor-in-Chief) and Jerod Santo (Managing Editor). Every week we feature conversations with the leaders, visionaries, and disruptors who are actively shaping the future landscape of software development and the tech industry.</p> 
+
+    <p><strong>What's the reach?</strong> We ship two (2) episodes every week that reach 40,000 to 80,000 developers weekly.</p>
+
+    <p><strong>Who will you reach?</strong> Software developers and engineers, engineering leadership and decision-makers who drive the technology stack and direction of their organization, open source maintainers/leaders and contributors, technology enthusiasts and learners who are Junior in their role or just getting started.</p>
+
+    <p><strong>Where in the world are our listeners?</strong> The majority of our listenership is in the United States (40-50%) with the rest of our listenership throughout the world &mdash; Australia, South America, Europe, India, Mainland China, Japan, and South Africa (and more).</p>
+
+    <p><strong>Who is this perfect for?</strong> The Changelog reaches a wide demographic of developers on a global scale. This podcast will help you reach a large and wide developer audience.</p>
+
+    <ul>
+      <li>We offer pre-roll and mid-roll sponsorships for this podcast</li>
+      <li><mark>$2,500 per week</mark> &mdash; two (2) episodes per week</li>
+      <li>Four (4) week minimum with an estimated reach between 160,000 to 320,000</li>
+      <li>Reaches an average 20,000 to 25,000 listens per episode (30-45 days)</li>
+      <li>Reaches an average 35,000 to 40,000 listens per episode (long tail)</li>
+      <li>Reaches an average 100,000 listens per month, podcast-wide</li>
+      <li>We will produce conversational ad spots and feature them in either the pre-roll or mid-roll slots of this show</li>
+      <li>Your logo and link will appear on the episode pages of the shows you sponsor</li>
+      <li>Your link will be included in the show notes delivered to podcast clients and RSS feed</li>
+      <li><%= link "Review previous episodes", to: "/podcast" %>
+ for examples.</li>
+    </ul>
+
+    <a id="news" class="anchor"></a>
+    <h2>Changelog News</h2>
+
+    <p>Changelog News is our weekly guide to developer news worth your attention. It's hosted and written by our Managing Editor Jerod Santo. Every Monday we cover the developer news worth your attention. We keep it brief, entertaining & always on point. Developers tune-in to the podcast and read the newsletter to keep up.</p>
+
+    <p><strong>What's the reach?</strong> Changelog News reaches 20,000 to 30,000 per week on the podcast, plus another 22,000 via the newsletter.</p>
+
+    <p><strong>Who will you reach?</strong> Busy software developers and engineers who want a single subscription to keep them informed and up to date with what's happening in the software world. The podcast is often 8 mins (or less) in length which makes it a must listen. It's often listened to within 1-2 days of publishing. The newsletter is for those who prefer to read instead of listen. It contains extended details, links, and bonus sections not included in the podcast.</p>
+
+    <p><strong>Who is this perfect for?</strong> Launches and announcements, conferences and events, promoting new developer tools and services, new features, job opportunities, courses and training programs.</p>
+
+    <ul>
+      <li>Changelog News is a podcast + newsletter that ships on Mondays</li>
+      <li>Each week we feature one brand on the podcast and the newsletter</li>
+      <li><mark>$1,500 per week (no minimums)</mark> &mdash; $1,250 per week if you bundle with The Changelog</li>
+      <li>Reaches an average 20,000 to 30,000 listens per episode</li>
+      <li>The newsletter reaches 22,000+ subscribers with a 51.35% open rate</li>
+      <li><%= link "Review previous episodes", to: "/news" %>
+ for examples.</li>
+    </ul>
+
+    <hr>
+
+    <a id="practicalai" class="anchor"></a>
+    <h2>Practical AI</h2>
+
+    <p>Practical AI takes you on a journey into the world of AI from the lens of expert AI practitioners implementing and deploying AI at scale. This podcast is focused on making artificial intelligence practical, productive, and accessible to every developer. Hosted by <%= link "Daniel Whitenack", to: "/person/dwhitena" %> and <%= link "Chris Benson", to: "/person/chris" %>.</p>
+
+    <p><strong>What's the reach?</strong> We ship one (1) episode weekly that reaches 35,000 to 45,000 AI developers weekly.</p>
+
+    <p><strong>Who will you reach?</strong> AI practitioners and developers who are focused on implementing and deploying AI solutions at scale — AI Engineers, Machine Learning and Data Scientists, AI Researchers, NLP Engineers (Natural Language Processing) and more. When you sponsor this podcast you'll reach the developers from several diciplines looking to gain insights and knowledge to take AI to the next stage in their organization.</p>
+
+    <ul>
+      <li>We offer pre-roll and mid-roll sponsorships for this podcast</li>
+      <li><mark>$1,200 per episode</mark></li>
+      <li>Four (4) week minimum with an estimated reach between 140,000 to 180,000</li>
+      <li>Reaches an average 35,000 to 45,000 listens per episode</li>
+      <li>Reaches an average 200,000 listens per month, podcast-wide</li>
+      <li>We will produce conversational ad spots and feature them in either the pre-roll or mid-roll slots of this show</li>
+      <li>Your logo and link will appear on the episode pages of the shows you sponsor</li>
+      <li>Your link will be included in the show notes delivered to podcast clients and RSS feed</li>
+      <li><%= link "Review previous episodes", to: "/practicalai" %>
+    </ul>
+
+    <hr>
+
+    <a id="fallthrough" class="anchor"></a>
+    <h2>Fallthrough</h2>
+
+    <p>Fallthrough is a software, technology, and computing podcast covering content from the perspective of the Go community. Hosted by <%= link "Kris Brandow", to: "/person/skriptble" %>, <%= link "Matthew Sanabria", to: "/person/sudomateo" %>, <%= link "Ian Wester-Lopshire", to: "/person/ianlopshire" %>, and <%= link "Dylan Bourque", to: "/person/dylanbourque" %>.</p>
+
+    <p><strong>What's the reach?</strong> They ship one (1) episode every week that reaches 1,000 to 2,000 developers weekly.</p>
+
+    <p><strong>Who will you reach?</strong> Systems developers and devs who either write Go daily or those who are "Go curious", distributed systems experts, cloud infrastructure professionals, microservices specialists, Kubernetes practitioners and decision-makers, SRE and DevOps engineers, engineering leadership (CTOs and tech leads), and open source contributors.</p>
+
+    <ul>
+      <li>We offer pre-roll and mid-roll sponsorships for this podcast</li>
+      <li><mark>$200 per episode</mark></li>
+      <li>Four (4) week minimum with an estimated reach between 4,000 to 8,000</li>
+      <li>Reaches an average 1,000 to 2,000 listens per episode</li>
+      <li>We will produce conversational ad spots and feature them in either the pre-roll or mid-roll slots of this show</li>
+      <li>Your logo, link, and copy will appear on the episode pages of the shows you sponsor</li>
+      <li><%= link "Review previous episodes", to: "https://fallthrough.transistor.fm" %></li>
+    </ul>
+
+    <hr>
+
+    <a id="conferences" class="anchor"></a>
+    <h2>Conference partnering</h2>
+
+    <p>We love to partner with conferences and community leaders. We have several options we can discuss on how we can support and partner with you and your community. We can come in as a media partner to help promote your event, bring a live show to the conference, cover the hallway track, speak with featured speakers on our podcasts, or other creative ways we can get involved.</p>
+
+    <p>Email <a href="mailto:adam@changelog.com">adam@changelog.com</a> so we can talk through your details and goals.</p>
+
+  </div>
+</article>

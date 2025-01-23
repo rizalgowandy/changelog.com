@@ -1,6 +1,4 @@
 import "phoenix_html";
-import "intersection-observer";
-import Turbolinks from "turbolinks";
 import { u, ajax } from "umbrellajs";
 import autosize from "autosize";
 import Cookies from "cookies-js";
@@ -8,7 +6,6 @@ import Prism from "prismjs";
 import Comment from "modules/comment";
 import OnsitePlayer from "modules/onsitePlayer";
 import MiniPlayer from "modules/miniPlayer";
-import LivePlayer from "modules/livePlayer";
 import Overlay from "modules/overlay";
 import ImageButton from "modules/imageButton";
 import YouTubeButton from "modules/youTubeButton";
@@ -21,44 +18,41 @@ import Flash from "modules/flash";
 import ts from "../shared/ts";
 import gup from "../shared/gup";
 import parseTime from "../shared/parseTime";
-import lozad from "lozad";
 
 window.u = u;
 window.App = {
-  lazy: lozad(".lazy"),
-  live: new LivePlayer(".js-live"),
   overlay: new Overlay("#overlay"),
   player: new OnsitePlayer("#player"),
   slider: new Slider(".js-slider"),
   ten: new Ten(),
 
   attachComments() {
-    u(".js-comment").each(el => {
+    u(".js-comment").each((el) => {
       if (el.comment === undefined) new Comment(el);
       el.comment.detectPermalink();
     });
   },
 
   attachFlash() {
-    u(".js-flash").each(el => {
+    u(".js-flash").each((el) => {
       if (el.flash === undefined) new Flash(el);
     });
   },
 
   attachMiniPlayers() {
-    u(".js-mini-player").each(el => {
+    u(".js-mini-player").each((el) => {
       if (el.player === undefined) new MiniPlayer(el);
     });
   },
 
   attachTooltips() {
-    u(".has-tooltip").each(el => {
+    u(".has-tooltip").each((el) => {
       if (el.tooltip === undefined) new Tooltip(el);
     });
   },
 
   detachFlash() {
-    u(".js-flash").each(el => {
+    u(".js-flash").each((el) => {
       el.flash.remove();
     });
   },
@@ -71,8 +65,10 @@ window.App = {
       this.player.scrubEnd(linkTime);
     } else {
       let playable = u("[data-play]");
-      this.player.load(playable.attr("href"), playable.data("play"), _ => {
+      this.player.load(playable.data("play"), (_) => {
         this.player.scrubEnd(linkTime);
+        this.player.play();
+        this.player.log("Play");
       });
     }
 
@@ -80,7 +76,7 @@ window.App = {
   },
 
   formatTimes() {
-    u("span.time").each(el => {
+    u("span.time").each((el) => {
       let span = u(el);
       let anchor = span.parent("a");
       let date = new Date(span.text());
@@ -93,14 +89,21 @@ window.App = {
 
   isExternalLink(a) {
     let href = a.attr("href");
-    return a.attr("rel") == "external" || (href[0] != "/" && !href.match(location.hostname));
+    return (
+      a.attr("rel") == "external" ||
+      (href[0] != "/" && !href.match(location.hostname))
+    );
   }
 };
 
 // Hide tooltips when clicking anywhere else
 u(document).on("click", function (event) {
   const target = u(event.target);
-  if (!target.closest(".has-tooltip").length && !target.closest(".tooltip").length && !target.hasClass("has-tooltip")) {
+  if (
+    !target.closest(".has-tooltip").length &&
+    !target.closest(".tooltip").length &&
+    !target.hasClass("has-tooltip")
+  ) {
     u(".tooltip").removeClass("is-visible");
   }
 });
@@ -123,10 +126,51 @@ u(document).on("change", ".js-toggle-subscription", function (event) {
 
 u(document).handle("click", ".js-subscribe-all", function (event) {
   u(event.target).remove();
-  u(".js-toggle-subscription:not(:checked)").each(el => {
+  u(".js-toggle-subscription:not(:checked)").each((el) => {
     el.click();
   });
 });
+
+// Manage custom feed podcasts
+u(document).on("click", ".js-feed-podcast_ids button", function (event) {
+  event.preventDefault();
+  let podcast = u(event.target).closest("button");
+  let id = podcast.data("id");
+
+  if (podcast.hasClass("disabled")) {
+    podcast.removeClass("disabled");
+    podcast.append(
+      `<input type="hidden" name="feed[podcast_ids][]" value="${id}">`
+    );
+  } else {
+    podcast.addClass("disabled");
+    podcast.find("input").remove();
+  }
+});
+
+// Manage custom feed covers
+u(document).on("change", ".js-feed-cover_select", function (event) {
+  let coverUrl = event.target.value;
+
+  u(".js-feed-cover_field").find("img").attr("src", coverUrl);
+  u(".js-feed-cover_field").find("input[type=hidden]").first().value = coverUrl;
+});
+
+u(document).on(
+  "change",
+  ".js-feed-cover_field input[type=file]",
+  function (event) {
+    let file = event.target.files[0];
+
+    if (file) {
+      let reader = new FileReader();
+      reader.onload = function (e) {
+        u(".js-feed-cover_field").find("img").attr("src", e.target.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+);
 
 u(document).handle("click", ".js-toggle_element", function (event) {
   const href = u(event.target).attr("href");
@@ -134,7 +178,9 @@ u(document).handle("click", ".js-toggle_element", function (event) {
 });
 
 u(document).handle("click", ".podcast-summary-widget_toggle", function (event) {
-  u(event.target).siblings(".podcast-summary-widget_menu").toggleClass("podcast-summary-widget_menu--is-open");
+  u(event.target)
+    .siblings(".podcast-summary-widget_menu")
+    .toggleClass("podcast-summary-widget_menu--is-open");
 });
 
 u(document).on("click", "[data-play]", function (event) {
@@ -142,15 +188,16 @@ u(document).on("click", "[data-play]", function (event) {
     event.preventDefault();
 
     let clicked = u(event.target).closest("a, button");
-    let audioUrl = clicked.attr("href");
     let detailsUrl = clicked.data("play");
     let linkTime = parseTime(clicked.data("t"));
 
-    if (App.player.currentlyLoaded == detailsUrl) {
+    if (App.player.isLoaded(detailsUrl)) {
       App.player.togglePlayPause();
     } else {
       App.player.pause();
-      App.player.load(audioUrl, detailsUrl, _ => {
+      App.player.load(detailsUrl, (_) => {
+        App.player.play();
+        App.player.log("Play");
         if (linkTime) App.player.scrubEnd(linkTime);
       });
     }
@@ -169,12 +216,28 @@ u(document).handle("click", "[data-share]", function (event) {
   new Share(App.overlay).load(u(this).data("share"));
 });
 
+u(document).handle("click", "[data-copy]", function (event) {
+  const el = u(event.target);
+  const type = "text/plain";
+  const blob = new Blob([el.data("copy")], { type });
+  const data = [new ClipboardItem({ [type]: blob })];
+
+  navigator.clipboard.write(data).then(() => {
+    let preText = el.text();
+    let successText = el.data("copy-text") || "Copied!";
+    el.text(successText);
+    setTimeout(() => {
+      el.text(preText);
+    }, 1200);
+  });
+});
+
 // open share dialogs in their own window (order matters or next rule will apply)
 u(document).handle("click", ".js-share-popup", function (event) {
   var h, href, left, shareWindow, top, w;
   href = u(event.target).attr("href");
   w = 600;
-  h = 300;
+  h = 500;
   left = screen.width / 2 - w / 2;
   top = screen.height / 2 - h / 2;
   Log.track("Social", { action: "share", url: href });
@@ -184,28 +247,6 @@ u(document).handle("click", ".js-share-popup", function (event) {
     `location=1,status=1,scrollbars=1,width=${w},height=${h},top=${top},left=${left}`
   );
   shareWindow.opener = null;
-});
-
-// track news impressions
-const observer = new IntersectionObserver(function (entries) {
-  entries.forEach(entry => {
-    if (!entry.isIntersecting) return;
-    let el = u(entry.target);
-    let type = el.data("news-type");
-    let id = el.data("news-id");
-    ajax(`/${type}/impress`, { method: "POST", body: { ids: id } });
-    observer.unobserve(entry.target);
-  });
-});
-
-// track news clicks
-u(document).on("mousedown", "[data-news]", function (event) {
-  let clicked = u(this);
-  let type = clicked.closest("[data-news-type]").data("news-type");
-  let id = clicked.closest("[data-news-id]").data("news-id");
-  if (!id) return false;
-  let trackedHref = `${location.origin}/${type}/${id}/visit`;
-  event.currentTarget.href = trackedHref;
 });
 
 // open external links in new window when player is doing its thing
@@ -243,77 +284,13 @@ u(document).on("click", "a[href^=\\#t]", function (event) {
   }
 });
 
-// submit forms with Turbolinks
-u(document).on("submit", "form", function (event) {
-  event.preventDefault();
-
-  let form = u(this);
-  let submits = form.find("input[type=submit]");
-  let optionalMethodOverride = form.children('input[name="_method"]');
-  let action = form.attr("action");
-  let method = form.attr("method");
-  let referrer = location.href;
-
-  // Override the default form action if form has hidden input generated for form_for/3
-  if (optionalMethodOverride.length) {
-    method = optionalMethodOverride.first().getAttribute("value");
-  }
-
-  if (method == "get") {
-    return Turbolinks.visit(`${action}?${form.serialize()}`);
-  }
-
-  let options = {
-    method: method,
-    body: new FormData(form.first()),
-    headers: { "Turbolinks-Referrer": referrer }
-  };
-
-  if (form.data("ajax")) {
-    options.headers["Accept"] = "application/javascript";
-  }
-
-  submits.each(el => {
-    el.setAttribute("disabled", true);
-  });
-
-  let andThen = function (err, resp, req) {
-    submits.each(el => {
-      el.removeAttribute("disabled");
-    });
-
-    if (req.getResponseHeader("content-type").match(/javascript/)) {
-      eval(resp);
-      u(document).trigger("ajax:load");
-    } else {
-      let snapshot = Turbolinks.Snapshot.wrap(resp);
-      Turbolinks.controller.cache.put(referrer, snapshot);
-      Turbolinks.visit(referrer, { action: "restore" });
-    }
-  };
-
-  ajax(action, options, andThen);
-});
-
 window.onhashchange = function () {
   App.deepLink();
 };
 
-u(document).on("turbolinks:before-cache", function () {
-  u("body").removeClass("nav-open");
-  App.overlay.hide();
-  App.detachFlash();
-});
-
-// on page load
-u(document).on("turbolinks:load", function () {
+u(document).on("DOMContentLoaded", function () {
   Prism.highlightAll();
-  App.lazy.observe();
   App.player.attach();
-  App.live.check();
-  u(".js-track-news").each(el => {
-    observer.observe(el);
-  });
   autosize(document.querySelectorAll("textarea"));
   App.attachComments();
   App.attachFlash();
@@ -328,8 +305,5 @@ u(document).on("ajax:load", function () {
   App.attachFlash();
   App.attachTooltips();
   App.formatTimes();
-  App.lazy.observe();
   autosize(document.querySelectorAll("textarea"));
 });
-
-Turbolinks.start();

@@ -1,0 +1,66 @@
+<div class="item">
+  <div class="content">
+    <div class="fields">
+      <div class="seven wide required field">
+        <label>{{count}}: Title</label>
+        <input
+	        type="text"
+	        name="episode[{{type}}_chapters][{{index}}][title]"
+	        placeholder="A great chapter title"
+          value="{{title}}"
+        >
+      </div>
+
+      <div class="eight wide field">
+        <label>Link URL</label>
+        <input
+          type="text"
+          name="episode[{{type}}_chapters][{{index}}][link_url]"
+          value="{{link}}"
+        >
+      </div>
+
+      <div class="one wide field">
+        <label>&nbsp;</label>
+        <div class="ui tiny icon button js-remove">
+          <i class="remove icon"></i>
+        </div>
+      </div>
+    </div>
+
+    <div class="fields">
+      <div class="one wide field">
+        <label>&nbsp;</label>
+      </div>
+
+      <div class="three wide required field">
+        <label>Starts at</label>
+        <input
+	        type="text"
+	        name="episode[{{type}}_chapters][{{index}}][starts_at]"
+          class="js-time-in-seconds"
+          value="{{starts_at}}"
+        >
+      </div>
+
+      <div class="three wide field">
+        <label>Ends at</label>
+        <input
+	        type="text"
+	        name="episode[{{type}}_chapters][{{index}}][ends_at]"
+          class="js-time-in-seconds"
+          value="{{ends_at}}"
+        >
+      </div>
+
+      <div class="eight wide field">
+        <label>Image URL</label>
+        <input
+          type="text"
+          name="episode[{{type}}_chapters][{{index}}][image_url]"
+          value="{{image}}"
+        >
+      </div>
+    </div>
+  </div>
+</div>

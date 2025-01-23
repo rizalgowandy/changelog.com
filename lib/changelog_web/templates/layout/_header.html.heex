@@ -1,0 +1,107 @@
+<header class="header">
+  <div class="header-container">
+    <div class="header-wrap">
+      <p class="header-logo"><%= link("Changelog", to: "/", title: "Go $HOME") %></p>
+
+      <nav class="header-nav">
+        <div class="header-nav-wrap">
+          <ul class="header-nav-primary header-nav-list">
+            <li class={"header-nav-list-item #{SharedHelpers.active_class(@conn, ["page-index", "podcast"])}"}>
+              <%= link("Podcasts", to: ~p"/", title: "Changelog Podcasts") %>
+            </li>
+            <li class="header-nav-list-item">
+              <%= link("News", to: ~p"/news", title: "Changelog News") %>
+            </li>
+            <li class={"header-nav-list-item #{SharedHelpers.active_class(@conn, ["album-index", "album"])}"}>
+              <%= link("Beats", to: ~p"/beats", title: "Changelog Beats") %>
+            </li>
+            <li class={"header-nav-list-item #{SharedHelpers.active_class(@conn, ["page-community", "person-join"])}"}>
+              <%= link("Community", to: ~p"/community", title: "Changelog Community") %>
+            </li>
+            <li class="header-nav-list-item">
+              <%= link("Merch", to: "https://merch.changelog.com", title: "Changelog Merch") %>
+            </li>
+            <li class="header-nav-list-item header-nav-list-item--ten">
+              <%= link("Changelog++", to: ~p"/++", title: "Join Changelog++") %>
+            </li>
+          </ul>
+
+          <div class="header-nav-secondary">
+            <ul class="header-nav-list">
+              <li class="header-nav-list-item is-desktop_only">
+                <%= link("Submit News", to: ~p"/news/submit", class: "header-button", title: "Submit News") %>
+              </li>
+            </ul>
+
+          <%= if @current_user do %>
+            <button class="has-tooltip">
+              <img class="header-nav-secondary-user" src={PersonView.avatar_url(@current_user)} width="35" height="35" alt={"#{@current_user.name} Avatar"}>
+            </button>
+            <div class="tooltip" data-placement="bottom-end">
+              <div class="tooltip-arrow"></div>
+              <div class="tooltip-wrap">
+                <ul class="tooltip-list">
+                <%= if Policies.Admin.Page.index(@current_user) do %>
+                  <li><%= link("Admin", to: ~p"/admin") %></li>
+                <% end %>
+                <%= if Policies.Feed.index(@current_user) do %>
+                  <li><%= link("My Feeds", to: ~p"/~/feeds") %></li>
+                <% end %>
+                <%= if @current_user.public_profile do %>
+                  <li><%= link("My Profile", to: PersonView.profile_path(@current_user)) %></li>
+                <% end %>
+                  <li><%= link("My Subscriptions", to: ~p"/~") %></li>
+                  <li><%= link("Profile Settings", to: ~p"/~/profile") %></li>
+                  <li><%= link("Account Settings", to: ~p"/~/account") %></li>
+                </ul>
+                <div class="tooltip-footer">
+                  <%= link("Sign Out", to: ~p"/out") %>
+                </div>
+              </div>
+            </div>
+          <% else %>
+            <ul class="header-nav-list">
+              <li class="header-nav-list-item"><%= link("Sign In", to: ~p"/in", class: "header-button", title: "Sign In") %></li>
+            </ul>
+          <% end %>
+
+            <form action={~p"/search"} method="get" class="header-search">
+              <input name="q" type="text" placeholder="Search Changelog" value="" aria-label="Search">
+            </form>
+
+            <button class="header-menu js-toggle-nav" title="Toggle Menu">
+              <span class="header-menu-box"><span class="header-menu-inner"></span></span>
+            </button>
+          </div>
+        </div>
+      </nav>
+    </div>
+  </div>
+
+  <%= for {type, message} <- @flash, do: render("_flash.html", type: type, message: message) %>
+</header>
+
+<nav class="mobile_nav">
+  <div class="mobile_nav-inner">
+    <div class="mobile_nav-main">
+      <div class="mobile_nav-main-inner">
+        <p class="mobile_nav-logo"><%= link("Changelog", to: "/", title: "Go $HOME") %></p>
+        <ul class="mobile_nav-list">
+          <li class="mobile_nav-list-item"><%= link("News", to: ~p"/news") %></li>
+          <li class="mobile_nav-list-item"><%= link("Beats", to: ~p"/beats") %></li>
+          <li class="mobile_nav-list-item"><%= link("Merch", to: "https://merch.changelog.com") %></li>
+          <li class="mobile_nav-list-item"><%= link("Podcasts", to: ~p"/podcasts") %></li>
+          <li class="mobile_nav-list-item"><%= link("Community", to: ~p"/community") %></li>
+          <li class="mobile_nav-list-item"><%= link("Changelog++", to: ~p"/++", title: "Join Changelog++") %></li>
+          <li class="mobile_nav-list-item"><%= link("Submit News", to: ~p"/news/submit") %></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="mobile_nav-bottom">
+      <form action={~p"/search"} method="get" class="mobile_nav-search search-form">
+        <input name="q" type="text" placeholder="Search Changelog" aria-label="Search">
+      </form>
+    </div>
+  </div>
+</nav>

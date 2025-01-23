@@ -13,7 +13,7 @@ defmodule Changelog.EpisodeRequest do
     field :topics, :string
     field :pitch, :string
     field :pronunciation, :string
-    field :decline_message, :string, default: ""
+    field :message, :string, default: ""
 
     belongs_to :podcast, Podcast
     belongs_to :submitter, Person
@@ -29,11 +29,28 @@ defmodule Changelog.EpisodeRequest do
   def declined(query \\ __MODULE__), do: from(q in query, where: q.status == ^:declined)
   def failed(query \\ __MODULE__), do: from(q in query, where: q.status == ^:failed)
 
-  def with_episode(query \\ __MODULE__),
-    do: from(q in query, join: e in Episode, on: q.id == e.request_id)
+  def with_message(query \\ __MODULE__), do: from(q in query, where: q.message != "")
 
-  def sans_episode(query \\ __MODULE__),
-    do: from(q in query, left_join: e in Episode, on: q.id == e.request_id, where: is_nil(e.id))
+  def with_episode(query \\ __MODULE__) do
+    from(q in query, join: e in Episode, on: q.id == e.request_id)
+  end
+
+  def with_published_episode(query \\ __MODULE__) do
+    from(q in query, join: e in Episode, on: q.id == e.request_id, where: e.published)
+  end
+
+  def with_unpublished_episode(query \\ __MODULE__) do
+    from(q in query, join: e in Episode, on: q.id == e.request_id, where: not(e.published))
+  end
+
+  def sans_episode(query \\ __MODULE__) do
+    from(
+      q in query,
+      left_join: e in Episode,
+      on: q.id == e.request_id,
+      where: is_nil(e.id)
+    )
+  end
 
   def admin_changeset(struct, params \\ %{}) do
     struct
@@ -46,6 +63,7 @@ defmodule Changelog.EpisodeRequest do
     struct
     |> cast(params, ~w(podcast_id submitter_id hosts guests topics pitch pronunciation)a)
     |> validate_required([:podcast_id, :submitter_id, :pitch])
+    |> validate_length(:topics, max: 140, message: "Keep it tweet size, please (OG 140 chars)")
     |> foreign_key_constraint(:podcast_id)
   end
 
@@ -65,20 +83,35 @@ defmodule Changelog.EpisodeRequest do
   def preload_submitter(query = %Ecto.Query{}), do: Ecto.Query.preload(query, :submitter)
   def preload_submitter(request), do: Repo.preload(request, :submitter)
 
-  def is_active(%{status: status}), do: Enum.member?(~w(fresh pending)a, status)
-  def is_archived(%{status: status}), do: Enum.member?(~w(failed declined)a, status)
+  def is_undecided(%{episode: episode}) when is_map(episode), do: false
+  def is_undecided(%{status: status}), do: Enum.member?(~w(fresh pending)a, status)
+
+  def is_pendable(%{episode: episode}) when is_map(episode), do: false
   def is_pendable(%{status: status}), do: Enum.member?(~w(fresh)a, status)
+
+  def is_archived(%{status: status}), do: Enum.member?(~w(failed declined)a, status)
+
+  def is_complete(%{episode: episode}) when is_map(episode), do: episode.published
+  def is_complete(%{episode: nil}), do: false
 
   def decline!(request), do: update_status!(request, :declined)
   def decline!(request, ""), do: decline!(request)
 
   def decline!(request, message) do
     request
-    |> change(%{decline_message: message})
+    |> change(%{message: message})
     |> update_status!(:declined)
   end
 
   def fail!(request), do: update_status!(request, :failed)
+  def fail!(request, ""), do: fail!(request)
+
+  def fail!(request, message) do
+    request
+    |> change(%{message: message})
+    |> update_status!(:failed)
+  end
+
   def pend!(request), do: update_status!(request, :pending)
 
   defp update_status!(request, status) do

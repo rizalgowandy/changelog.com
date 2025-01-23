@@ -1,0 +1,47 @@
+<div class="ui basic segment">
+  <h1 class="ui dividing header">
+    <%= link("Podcasts", to: ~p"/admin/podcasts") %>
+    <%= render(PodcastView, "_dropdown_list.html", assigns) %>
+    <%= link(@podcast.name, to: ~p"/admin/podcasts/#{@podcast.slug}/episodes") %> &raquo;
+    YouTube Stuff
+  </h1>
+
+  <div class="actions right">
+  </div>
+</div>
+
+<div class="ui basic segment text container">
+  <form class="ui form">
+    <div class="field">
+      <div class="ui selection dropdown js-episode-select">
+        <input type="hidden" name="episode">
+        <i class="dropdown icon"></i>
+        <div class="default text">Select an episode</div>
+        <div class="menu">
+        <%= for episode <- @episodes do %>
+          <div class="item" data-value={episode.id}><%= numbered_title(episode) %></div>
+        <% end %>
+
+        </div>
+      </div>
+    </div>
+
+    <div class="ui padded segment js-csv-file">
+      <div class="ui icon message">
+          <i class="file audio icon"></i>
+          <div class="content">
+            <div class="header">
+              Select an episode & drop a markered .CSV file here
+            </div>
+          </div>
+      </div>
+    </div>
+
+    <div class="ui padded segment">
+      <div class="field">
+        <label>Description</label>
+        <textarea class="js-description-output" rows="1"></textarea>
+        </div>
+      </div>
+  </form>
+</div>

@@ -1,14 +1,24 @@
 defmodule Changelog.UrlKit do
-  alias Changelog.{NewsSource, Person, Regexp}
+  alias Changelog.{HTTP, NewsSource, Person, Regexp}
 
   def get_author(nil), do: nil
   def get_author(url), do: Person.get_by_website(url)
 
-  def get_html(nil), do: ""
+  def get_tempfile(url) do
+    case HTTP.get(url, [], follow_redirect: true, max_redirect: 5) do
+      {:ok, %{status_code: 200, body: body}} ->
+        hash = :sha256 |> :crypto.hash(body) |> Base.encode16()
+        path = Path.join(System.tmp_dir(), hash)
+        :ok = File.write(path, body)
+        path
+    end
+  end
 
-  def get_html(url) do
+  def get_body(nil), do: ""
+
+  def get_body(url) do
     try do
-      case HTTPoison.get!(url, [], follow_redirect: true, max_redirect: 5) do
+      case HTTP.get!(url, [], follow_redirect: true, max_redirect: 5) do
         %{status_code: 200, headers: headers, body: body} ->
           case List.keyfind(headers, "Content-Encoding", 0) do
             {"Content-Encoding", "gzip"} -> :zlib.gunzip(body)
@@ -71,6 +81,10 @@ defmodule Changelog.UrlKit do
   def is_youtube(nil), do: false
   def is_youtube(url), do: Enum.any?(youtube_regexes(), &String.match?(url, &1))
 
+  def is_self_hosted(url) do
+    URI.parse(url).host == "changelog.com"
+  end
+
   def normalize_url(nil), do: nil
 
   def normalize_url(url) do
@@ -82,10 +96,24 @@ defmodule Changelog.UrlKit do
     |> URI.to_string()
   end
 
+  def sans_cache_buster(nil), do: nil
+  def sans_cache_buster(url), do: String.replace(url, Regexp.cache_buster(), "")
+
   def sans_scheme(nil), do: nil
   def sans_scheme(url), do: String.replace(url, Regexp.http(), "")
 
-  defp is_self_hosted(url), do: String.contains?(url, "changelog.com")
+  def sans_query(nil), do: nil
+
+  def sans_query(url) do
+    url
+    |> URI.parse()
+    |> Map.put(:query, nil)
+    |> URI.to_string()
+  end
+
+  def via_scribe(url) do
+    url |> URI.parse() |> Map.put(:host, "scribe.rip") |> URI.to_string()
+  end
 
   defp normalize_query_string(nil), do: nil
 

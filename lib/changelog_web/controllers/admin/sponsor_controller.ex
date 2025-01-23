@@ -1,7 +1,7 @@
 defmodule ChangelogWeb.Admin.SponsorController do
   use ChangelogWeb, :controller
 
-  alias Changelog.{EpisodeSponsor, NewsSponsorship, Sponsor}
+  alias Changelog.{EpisodeSponsor, Fastly, NewsSponsorship, Sponsor}
 
   plug :assign_sponsor when action in [:show, :edit, :update, :delete]
   plug Authorize, [Policies.AdminsOnly, :sponsor]
@@ -11,6 +11,7 @@ defmodule ChangelogWeb.Admin.SponsorController do
     sponsors =
       Sponsor
       |> Sponsor.newest_first(:updated_at)
+      |> Sponsor.preload_reps()
       |> Repo.all()
 
     conn
@@ -40,7 +41,7 @@ defmodule ChangelogWeb.Admin.SponsorController do
   end
 
   def new(conn, _params) do
-    changeset = Sponsor.insert_changeset(%Sponsor{})
+    changeset = Sponsor.insert_changeset(%Sponsor{sponsor_reps: []})
     render(conn, :new, changeset: changeset)
   end
 
@@ -53,7 +54,7 @@ defmodule ChangelogWeb.Admin.SponsorController do
 
         conn
         |> put_flash(:result, "success")
-        |> redirect_next(params, Routes.admin_sponsor_path(conn, :edit, sponsor))
+        |> redirect_next(params, ~p"/admin/sponsors/#{sponsor}/edit")
 
       {:error, changeset} ->
         conn
@@ -63,18 +64,25 @@ defmodule ChangelogWeb.Admin.SponsorController do
   end
 
   def edit(conn = %{assigns: %{sponsor: sponsor}}, _params) do
+    sponsor = sponsor |> Sponsor.preload_reps()
     changeset = Sponsor.update_changeset(sponsor)
     render(conn, :edit, sponsor: sponsor, changeset: changeset)
   end
 
   def update(conn = %{assigns: %{sponsor: sponsor}}, params = %{"sponsor" => sponsor_params}) do
+    sponsor =
+      sponsor
+      |> Sponsor.preload_reps()
+
     changeset = Sponsor.update_changeset(sponsor, sponsor_params)
 
     case Repo.update(changeset) do
-      {:ok, _sponsor} ->
+      {:ok, sponsor} ->
+        Fastly.purge(sponsor)
+
         conn
         |> put_flash(:result, "success")
-        |> redirect_next(params, Routes.admin_sponsor_path(conn, :index))
+        |> redirect_next(params, ~p"/admin/sponsors")
 
       {:error, changeset} ->
         conn
@@ -88,7 +96,7 @@ defmodule ChangelogWeb.Admin.SponsorController do
 
     conn
     |> put_flash(:result, "success")
-    |> redirect(to: Routes.admin_sponsor_path(conn, :index))
+    |> redirect(to: ~p"/admin/sponsors")
   end
 
   defp assign_sponsor(conn = %{params: %{"id" => id}}, _) do

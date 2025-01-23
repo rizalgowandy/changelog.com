@@ -1,0 +1,13 @@
+<section class="show_list">
+  <header class="show_list-header">
+    <h2>World-class podcasts for developers</h2>
+    <p><%= link("The Changelog", to: "/podcast", title: "The Changelog podcast") %> podcast is software's best weekly news brief (Mondays), deep technical interviews (Wednesdays) &amp; talk show (Fridays).</p>
+    <p class="show_list-header-master_cta"><a href="/news" title="Subscribe to Changelog News"><strong>Get the Changelog News[letter]!</strong> "<em>So good I consider it a competitive advantage</em>"</a></p>
+    <p>But that's not all! We produce other great shows about AI, web development, open source, software engineering & running it in production.</p>
+  </header>
+  <div class="show_list-shows">
+  <%= for podcast <- active_podcasts_for_index(@podcasts) do %>
+    <%= render(__MODULE__, "_summary.html", podcast: podcast) %>
+  <% end %>
+  </div>
+</section>

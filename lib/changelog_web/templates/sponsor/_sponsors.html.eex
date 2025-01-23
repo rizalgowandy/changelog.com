@@ -1,0 +1,6 @@
+<%= for {name, url} <- sponsors_list() do %>
+  <% image = "sponsor-" <> StringKit.dasherize(name) <> ".png" %>
+  <a class="logo_grid-item" href="<%= url %>" title="<%= name %>">
+    <img src="<%= url(~p"/images/content/community/sponsors/#{image}") %>" alt="<%= name %>">
+  </a>
+<% end %>

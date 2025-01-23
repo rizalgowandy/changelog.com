@@ -1,0 +1,96 @@
+<% next = SharedHelpers.get_param(assigns, "next", "") %>
+
+<div class="ui basic segment">
+  <h1 class="ui dividing header">
+    <%= link("People", to: ~p"/admin/people") %>
+    &raquo;
+    <%= @person.name %> (<%= @person.handle %>)
+  <%= if @person.active_membership do %>
+    <%= link(to: ~p"/admin/memberships/#{@person.active_membership}/edit") do %>
+    <span class="ui tiny blue label">++</span>
+    <% end %>
+  <% end %>
+    <div class="ui basic right floated buttons">
+      <%= link("View Public",
+            to: ~p"/person/#{@person.handle}",
+            rel: "external",
+            class: "ui button") %>
+    </div>
+    <div class="sub header">
+      created: <%= AdminHelpers.ts(@person.inserted_at) %>
+      &nbsp;&bull;&nbsp;
+      joined: <%= if @person.joined_at, do: AdminHelpers.ts(@person.joined_at), else: "never" %>
+      &nbsp;&bull;&nbsp;
+      last signed in: <%= if @person.signed_in_at, do: AdminHelpers.ts(@person.signed_in_at), else: "never" %>
+    </div>
+  </h1>
+</div>
+
+<div class="actions right">
+  <div class="ui basic buttons">
+    <%= @person |> list_of_links() |> raw() %>
+    <%= AdminHelpers.icon_link("inbox", to: "https://email.changelog.com/triggered/reports/da13bb163d5f4344#/?query=#{@person.email}", title: "View email history", rel: "external") %>
+  <%= if Policies.Admin.Person.edit(@current_user, @person) do %>
+    <%= AdminHelpers.icon_link("edit", to: ~p"/admin/people/#{@person}/edit?next=#{next}", title: "Edit") %>
+  <% end %>
+    <%= AdminHelpers.icon_link("chat", to: ~p"/admin/people/#{@person}/zulip", title: "Invite to Zulip", method: :post, data: [confirm: "Are you sure?"]) %>
+  <%= if Policies.Admin.Person.masq(@current_user, @person) do %>
+    <%= AdminHelpers.icon_link("user secret", to: ~p"/admin/people/#{@person}/masq", title: "Masquarade", method: :post, data: [confirm: "Do you want to use the site as this user?"]) %>
+  <% end %>
+  <%= if Policies.Admin.Person.delete(@current_user, @person) do %>
+    <%= AdminHelpers.icon_link("trash", to: ~p"/admin/people/#{@person}?next=#{next}", title: "Delete", method: :delete, data: [confirm: "Are you sure?"]) %>
+  <% end %>
+  </div>
+</div>
+
+<div class="ui basic segment">
+  <h2 class="ui header">Subscribed To</h2>
+<%= for subscription <- @subscriptions do %>
+  <span class="ui large label"><%= subscription.podcast.name %></span>
+<% end %>
+<%= if is_subscribed(@person, Changelog.Newsletters.nightly()) do %>
+  <span class="ui large label">Nightly</span>
+<% end %>
+</div>
+
+<%= if Enum.any?(@feeds) do %>
+<div class="ui basic segment">
+  <h2 class="ui header">Feeds</h2>
+  <%= render(FeedView, "_table.html", assigns) %>
+</div>
+<% end %>
+
+<%= if Enum.any?(@published) do %>
+<div class="ui basic segment">
+  <h2 class="ui header">Recent news <%= link("(view all)", to: ~p"/admin/people/#{@person}/news") %></h2>
+  <%= render(NewsItemView, "_table.html", Map.merge(assigns, %{status: :published, items: @published})) %>
+</div>
+<% end %>
+
+<%= if Enum.any?(@declined) do %>
+<div class="ui basic segment">
+  <h2 class="ui header">Declined news</h2>
+  <%= render(NewsItemView, "_table.html", Map.merge(assigns, %{status: :declined, items: @declined})) %>
+</div>
+<% end %>
+
+<%= if Enum.any?(@episodes) do %>
+<div class="ui basic segment">
+  <h2 class="ui header">Guest episodes</h2>
+  <%= render(EpisodeView, "_table.html", Map.merge(assigns, %{episodes: @episodes, status: :published})) %>
+</div>
+<% end %>
+
+<%= if Enum.any?(@episode_requests) do %>
+<div class="ui basic segment">
+  <h2 class="ui header">Episodes requested</h2>
+  <%= render(EpisodeRequestView, "_table.html", Map.merge(assigns, %{requests: @episode_requests})) %>
+</div>
+<% end %>
+
+<%= if Enum.any?(@comments) do %>
+<div class="ui basic segment">
+  <h2 class="ui header">Recent comments <%= link("(view all)", to: ~p"/admin/people/#{@person}/comments") %></h2>
+  <%= render(NewsItemCommentView, "_table.html", Map.merge(assigns, %{comments: @comments})) %>
+</div>
+<% end %>

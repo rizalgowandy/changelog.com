@@ -1,9 +1,9 @@
 defmodule ChangelogWeb.Admin.EpisodeView do
   use ChangelogWeb, :admin_view
 
-  alias Changelog.{Episode, EpisodeStat, Person, Sponsor, Topic}
+  alias Changelog.{Episode, Person, Podcast, Sponsor, StringKit, Topic}
   alias ChangelogWeb.{EpisodeView, PersonView, TimeView}
-  alias ChangelogWeb.Admin.{EpisodeRequestView, PodcastView}
+  alias ChangelogWeb.Admin.{EpisodeRequestView, PodcastView, SharedView}
 
   def audio_filename(episode), do: EpisodeView.audio_filename(episode)
   def plusplus_filename(episode), do: EpisodeView.plusplus_filename(episode)
@@ -14,6 +14,31 @@ defmodule ChangelogWeb.Admin.EpisodeView do
   def megabytes(episode), do: EpisodeView.megabytes(episode)
   def megabytes(episode, type), do: EpisodeView.megabytes(episode, type)
   def numbered_title(episode), do: EpisodeView.numbered_title(episode)
+
+  def agents(episode_stats) when is_list(episode_stats) do
+    episode_stats
+    |> Enum.map(&(&1.demographics["agents"]))
+    # remove (raw) duplicates, adding up download counts along the way
+    |> Enum.reduce(%{}, fn map, acc ->
+      Map.merge(acc, map, fn _k, v1, v2 -> v1 + v2 end)
+    end)
+    # identify agents from raw user agents
+    |> Enum.map(fn {ua, count} ->
+      %{name: name, type: type} = Changelog.AgentKit.identify(ua)
+      %{name => %{"type" => type, "count" => count, "raw" => [ua]}}
+    end)
+    # remove (id'd) duplicates, adding download counts and accumulating raw user agents
+    |> Enum.reduce(%{}, fn map, acc ->
+      Map.merge(acc, map, fn _k, v1, v2 ->
+        %{"type" => v1["type"], "count" => v1["count"] + v2["count"], "raw" => v1["raw"] ++ v2["raw"]}
+        end)
+    end)
+    |> Enum.filter(fn {_name, data} -> data["type"] != "bot" end)
+  end
+
+  def sum_downloads(agents) do
+    Enum.reduce(agents, 0, fn {_name, data}, acc -> acc + data["count"] end)
+  end
 
   def last_stat_date(podcast) do
     case PodcastView.last_stat(podcast) do
@@ -54,8 +79,7 @@ defmodule ChangelogWeb.Admin.EpisodeView do
     |> Enum.map(fn {date, list} ->
       %{
         date: date,
-        downloads: list |> Enum.map(& &1.downloads) |> Enum.sum(),
-        uniques: list |> Enum.map(& &1.uniques) |> Enum.sum()
+        downloads: list |> Enum.map(& &1.downloads) |> Enum.sum()
       }
     end)
     |> Enum.sort(&Timex.before?(&1.date, &2.date))
@@ -67,7 +91,6 @@ defmodule ChangelogWeb.Admin.EpisodeView do
       title: title,
       categories: Enum.map(stats, &stat_chart_date/1),
       series: [
-        %{name: "Reach", data: Enum.map(stats, & &1.uniques)},
         %{name: "Downloads", data: Enum.map(stats, &Float.round(&1.downloads))}
       ]
     }
@@ -78,15 +101,17 @@ defmodule ChangelogWeb.Admin.EpisodeView do
     date
   end
 
-  def reach_link(label, assigns = %{reach: reach, conn: conn, current_user: user}) do
-    count = SharedHelpers.comma_separated(reach[label])
+  def downloads_link(label, assigns = %{downloads: downloads, conn: conn, current_user: user}) do
+    count = SharedHelpers.pretty_downloads(downloads[label])
     podcast = Map.get(assigns, :podcast)
 
-    if Policies.Admin.Page.reach(user) do
+    if Policies.Admin.Page.downloads(user) do
       if podcast do
-        link(count, to: Routes.admin_page_path(conn, :reach, range: label, podcast: podcast.slug))
+        link(count,
+          to: Routes.admin_page_path(conn, :downloads, range: label, podcast: podcast.slug)
+        )
       else
-        link(count, to: Routes.admin_page_path(conn, :reach, range: label))
+        link(count, to: Routes.admin_page_path(conn, :downloads, range: label))
       end
     else
       count
@@ -100,15 +125,15 @@ defmodule ChangelogWeb.Admin.EpisodeView do
         %{
           name: "Launch",
           data:
-            Enum.map(stats, fn {slug, reach, title, _reach} ->
-              %{x: slug, y: reach, title: title}
+            Enum.map(stats, fn {slug, downloads, title, _total} ->
+              %{x: slug, y: downloads, title: title}
             end)
         },
         %{
           name: "Total",
           data:
-            Enum.map(stats, fn {slug, _reach, title, reach} ->
-              %{x: slug, y: reach, title: title}
+            Enum.map(stats, fn {slug, _downloads, title, total} ->
+              %{x: slug, y: total, title: title}
             end)
         }
       ]
@@ -121,12 +146,6 @@ defmodule ChangelogWeb.Admin.EpisodeView do
     end)
   end
 
-  def round_and_filter(stats) do
-    stats
-    |> Enum.map(fn {key, value} -> {key, round(value)} end)
-    |> Enum.reject(fn {_key, value} -> value == 0 end)
-  end
-
   def status_label(episode) do
     if episode.published do
       content_tag(:span, "Published", class: "ui tiny green basic label")
@@ -135,11 +154,11 @@ defmodule ChangelogWeb.Admin.EpisodeView do
     end
   end
 
-  def show_or_preview(episode) do
+  def show_or_preview_path(podcast, episode) do
     if Episode.is_public(episode) do
-      :show
+      ~p"/#{podcast.slug}/#{episode.slug}"
     else
-      :preview
+      ~p"/#{podcast.slug}/#{episode.slug}/preview"
     end
   end
 

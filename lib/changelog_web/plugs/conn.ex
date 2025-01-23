@@ -4,24 +4,24 @@ defmodule ChangelogWeb.Plug.Conn do
   """
 
   import Plug.Conn
+  require Logger
 
   alias ChangelogWeb.Router
 
   @doc """
   Extracts the user agent from a connection's headers
   """
-  def get_agent(conn) do
-    conn
-    |> get_req_header("user-agent")
-    |> List.first()
-  end
+  def get_agent(conn), do: get_header(conn, "user-agent")
 
   @doc """
-  Extracts the host from a connection's headers
+  Extracts the host from a connection's headers, starting with `forwarded-host`
   """
   def get_host(conn) do
-    conn
-    |> get_req_header("host")
+    host = get_header(conn, "x-forwarded-host") || get_header(conn, "host") || Map.get(conn, :host, nil)
+
+    host
+    |> to_string()
+    |> String.split(":")
     |> List.first()
   end
 
@@ -32,11 +32,10 @@ defmodule ChangelogWeb.Plug.Conn do
   def get_local_referer(conn) do
     referer =
       conn
-      |> get_req_header("referer")
-      |> Enum.at(0, "")
+      |> get_header("referer", "")
       |> URI.parse()
 
-    if referer.host == conn.host do
+    if referer.host == get_host(conn) do
       referer
       |> Map.merge(%{authority: nil, host: nil, scheme: nil, port: nil})
       |> URI.to_string()
@@ -57,8 +56,17 @@ defmodule ChangelogWeb.Plug.Conn do
     end
   end
 
+  # returns first header for `key` or nil
+  defp get_header(conn, key) do
+    conn |> get_req_header(key) |> List.first()
+  end
+
+  defp get_header(conn, key, fallback) do
+    conn |> get_req_header(key) |> Enum.at(0, fallback)
+  end
+
   defp extract_referer(conn) do
-    if referer = conn |> get_req_header("referer") |> List.last() do
+    if referer = get_header(conn, "referer") do
       {:ok, referer}
     else
       {:error, "no referer header"}
@@ -70,7 +78,7 @@ defmodule ChangelogWeb.Plug.Conn do
     path = Map.get(uri, :path)
 
     cond do
-      uri.host != conn.host -> {:error, "external referer"}
+      uri.host != get_host(conn) -> {:error, "external referer"}
       String.starts_with?(path, "//") -> {:error, "invalid path"}
       true -> {:ok, path}
     end

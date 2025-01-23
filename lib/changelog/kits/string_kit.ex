@@ -3,7 +3,9 @@ defmodule Changelog.StringKit do
 
   def blank?(nil), do: true
 
-  def blank?(string), do: String.trim(string) == ""
+  def blank?(string) when is_binary(string), do: String.trim(string) == ""
+
+  def blank?(_unknown), do: false
 
   def dasherize(string) do
     string
@@ -28,6 +30,18 @@ defmodule Changelog.StringKit do
   end
 
   @doc """
+  Returns true if the given string represents an integer, false otherwise
+  """
+  def is_integer(string) do
+    try do
+      _ = String.to_integer(string)
+      true
+    rescue
+      _ -> false
+    end
+  end
+
+  @doc """
   Converts 'bare' links to Markdown-style links for further processing
   """
   def md_linkify(string) do
@@ -39,6 +53,24 @@ defmodule Changelog.StringKit do
     /x
 
     Regex.replace(regex, string, ~s{[\\1](\\1)})
+  end
+
+  @doc """
+  Removes Markdown-style links from a string
+  """
+  def md_delinkify(string) do
+    regex = ~r/\[(.*?)\]\(.*?\)/
+
+    Regex.replace(regex, string, "\\1")
+  end
+
+  @doc """
+  Removes Markdown-style descriptions from a link. Opposite of `md_delinkify`
+  """
+  def md_bare_linkify(string) do
+    regex = ~r/\[(.*?)\]\((.*?)\)/
+
+    Regex.replace(regex, string, "\\2")
   end
 
   @doc """

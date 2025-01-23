@@ -1,15 +1,16 @@
 defmodule Changelog.Subscription do
   use Changelog.Schema
 
-  alias Changelog.{NewsItem, Person, Podcast}
+  alias Changelog.{Episode, NewsItem, Person, Podcast}
 
   schema "subscriptions" do
     field :unsubscribed_at, :utc_datetime
     field :context, :string
 
+    belongs_to :episode, Episode
+    belongs_to :item, NewsItem
     belongs_to :person, Person
     belongs_to :podcast, Podcast
-    belongs_to :item, NewsItem
 
     timestamps()
   end
@@ -19,8 +20,8 @@ defmodule Changelog.Subscription do
   def subscribed(query \\ __MODULE__, start_time, end_time) do
     from(q in query,
       where: is_nil(q.unsubscribed_at),
-      where: q.inserted_at < ^start_time,
-      where: q.inserted_at >= ^end_time
+      where: q.inserted_at > ^start_time,
+      where: q.inserted_at <= ^end_time
     )
   end
 
@@ -30,19 +31,23 @@ defmodule Changelog.Subscription do
   def unsubscribed(query \\ __MODULE__, start_time, end_time) do
     from(q in query,
       where: not is_nil(q.unsubscribed_at),
-      where: q.unsubscribed_at < ^start_time,
-      where: q.unsubscribed_at >= ^end_time
+      where: q.unsubscribed_at > ^start_time,
+      where: q.unsubscribed_at <= ^end_time
     )
   end
 
   def for_person(query \\ __MODULE__, person),
     do: from(q in query, where: q.person_id == ^person.id)
 
+  def on_episode(query \\ __MODULE__, episode),
+    do: from(q in query, where: q.episode_id == ^episode.id)
+
   def on_item(query \\ __MODULE__, item), do: from(q in query, where: q.item_id == ^item.id)
 
   def on_podcast(query \\ __MODULE__, podcast),
     do: from(q in query, where: q.podcast_id == ^podcast.id)
 
+  def on_subject(query, episode = %Episode{}), do: on_episode(query, episode)
   def on_subject(query, item = %NewsItem{}), do: on_item(query, item)
   def on_subject(query, podcast = %Podcast{}), do: on_podcast(query, podcast)
 
@@ -91,6 +96,8 @@ defmodule Changelog.Subscription do
     |> change(context: context)
     |> Repo.insert_or_update()
   end
+
+  def subscribed_count(nil), do: 0
 
   def subscribed_count(subject) do
     __MODULE__
@@ -141,6 +148,7 @@ defmodule Changelog.Subscription do
       case subject do
         %NewsItem{id: id} -> %{person_id: person.id, item_id: id}
         %Podcast{id: id} -> %{person_id: person.id, podcast_id: id}
+        %Episode{id: id} -> %{person_id: person.id, episode_id: id}
       end
 
     case Repo.get_by(__MODULE__, attrs) do

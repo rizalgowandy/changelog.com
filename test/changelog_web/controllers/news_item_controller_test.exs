@@ -3,27 +3,6 @@ defmodule ChangelogWeb.NewsItemControllerTest do
 
   alias Changelog.{NewsItem, NewsQueue, Post, Subscription}
 
-  test "getting the index", %{conn: conn} do
-    i1 = insert(:news_item)
-    i2 = insert(:published_news_item)
-
-    conn = get(conn, Routes.root_path(conn, :index))
-
-    assert conn.status == 200
-    refute conn.resp_body =~ i1.headline
-    assert conn.resp_body =~ i2.headline
-  end
-
-  @tag :as_admin
-  test "getting the index as admin", %{conn: conn} do
-    i1 = insert(:published_news_item)
-
-    conn = get(conn, Routes.root_path(conn, :index))
-
-    assert conn.status == 200
-    assert conn.resp_body =~ i1.headline
-  end
-
   test "getting a published news item page via hashid", %{conn: conn} do
     item = insert(:published_news_item, headline: "Hash ID me!")
     conn = get(conn, Routes.news_item_path(conn, :show, NewsItem.hashid(item)))
@@ -36,7 +15,7 @@ defmodule ChangelogWeb.NewsItemControllerTest do
     assert html_response(conn, 200) =~ item.headline
   end
 
-  test "getting a published news item page of that has a post", %{conn: conn} do
+  test "getting a published news item page that has a post", %{conn: conn} do
     post = insert(:published_post)
     item = post |> post_news_item() |> insert()
     conn = get(conn, Routes.news_item_path(conn, :show, Post.hashid(item)))
@@ -57,14 +36,15 @@ defmodule ChangelogWeb.NewsItemControllerTest do
     end
   end
 
-  test "previewing a news item", %{conn: conn} do
-    item = insert(:news_item)
-
-    conn = get(conn, Routes.news_item_path(conn, :preview, item))
-    assert html_response(conn, 200) =~ item.headline
+  test "posting to the visit endpoint tracks and responds with 204", %{conn: conn} do
+    item = insert(:published_news_item, headline: "You gonna like this")
+    conn = post(conn, Routes.news_item_path(conn, :visit, NewsItem.hashid(item)))
+    assert conn.status == 204
+    item = Repo.get(NewsItem, item.id)
+    assert item.click_count == 1
   end
 
-  test "hitting the visit endpoint sans internal object uses html redirect", %{conn: conn} do
+  test "getting the visit endpoint sans internal object uses html redirect", %{conn: conn} do
     item = insert(:published_news_item, headline: "You gonna like this")
     conn = get(conn, Routes.news_item_path(conn, :visit, NewsItem.hashid(item)))
     assert html_response(conn, 200) =~ item.url
@@ -72,7 +52,7 @@ defmodule ChangelogWeb.NewsItemControllerTest do
     assert item.click_count == 1
   end
 
-  test "hitting the visit endpoint with internal object uses http redirect", %{conn: conn} do
+  test "getting the visit endpoint with internal object uses http redirect", %{conn: conn} do
     podcast = insert(:podcast, slug: "ohai")
     episode = insert(:published_episode, podcast: podcast, slug: "okbai")
     item = episode |> episode_news_item() |> insert()
@@ -83,7 +63,7 @@ defmodule ChangelogWeb.NewsItemControllerTest do
   end
 
   @tag :as_admin
-  test "hitting the visit endpoint as admin does not visit", %{conn: conn} do
+  test "getting the visit endpoint as admin does not visit", %{conn: conn} do
     item = insert(:published_news_item, headline: "You gonna like this")
     conn = get(conn, Routes.news_item_path(conn, :visit, NewsItem.hashid(item)))
     assert html_response(conn, 200) =~ item.url
@@ -134,11 +114,25 @@ defmodule ChangelogWeb.NewsItemControllerTest do
   end
 
   @tag :as_inserted_user
-  test "creates news item and sets it as submitted", %{conn: conn} do
+  test "does not create when user is not subscribed to News", %{conn: conn} do
+    count_before = count(NewsItem)
+
     conn =
       post(conn, Routes.news_item_path(conn, :create),
-        news_item: %{url: "https://ohai.me/x", headline: "dig it?"}
-      )
+        news_item: %{url: "https://ohai.me/x", headline: "dig it?"})
+
+    assert html_response(conn, 200) =~ ~r/error/
+    assert count(NewsItem) == count_before
+  end
+
+  @tag :as_inserted_user
+  test "creates news item and sets it as submitted", %{conn: conn} do
+    update = insert(:podcast, slug: "news")
+    insert(:subscription_on_podcast, podcast: update, person: conn.assigns.current_user)
+
+    conn =
+      post(conn, Routes.news_item_path(conn, :create),
+        news_item: %{url: "https://ohai.me/x", headline: "dig it?"})
 
     assert redirected_to(conn) == Routes.root_path(conn, :index)
     assert count(NewsItem.submitted()) == 1

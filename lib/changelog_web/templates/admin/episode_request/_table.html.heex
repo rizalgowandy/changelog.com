@@ -1,0 +1,117 @@
+<% # sometimes this table is rendered within a specific podcast or person context, sometimes not %>
+<table class="ui celled striped unstackable table">
+  <thead>
+    <tr>
+    <%= if !assigns[:podcast] do %>
+      <th>Podcast</th>
+    <% end %>
+    <%= if !assigns[:status] do %>
+      <th>Status</th>
+    <% end %>
+      <th>Requested</th>
+    <%= if !assigns[:person] do %>
+      <th>Submitter</th>
+    <% end %>
+      <th>Topics</th>
+      <th>Guests</th>
+      <th>Pitch</th>
+      <th></th>
+    </tr>
+  </thead>
+
+  <tbody>
+  <%= for request <- @requests do %>
+    <% podcast = assigns[:podcast] || request.podcast %>
+    <tr>
+    <%= if !assigns[:podcast] do %>
+      <td><%= link(podcast.name, to: ~p"/admin/podcasts/#{podcast.slug}/episodes") %></td>
+    <% end %>
+    <%= if !assigns[:status] do %>
+      <td><%= status_label(request) %></td>
+    <% end %>
+      <td><%= AdminHelpers.ts(request.inserted_at, "relativeLong") %></td>
+    <%= if !assigns[:person] do %>
+      <td>
+        <%= link to: ~p"/admin/people/#{request.submitter}",
+          title: "#{request.submitter.name} (#{submitter_name(request)})",
+          data: [popup: true] do %>
+              <img class="ui avatar image" src={PersonView.avatar_url(request.submitter)}>&nbsp;
+        <% end %>
+      </td>
+    <% end %>
+      <td><%= SharedHelpers.truncate(request.topics, 30) %></td>
+      <td><%= SharedHelpers.truncate(request.guests, 30) %></td>
+      <td>
+      <%= if Policies.Admin.EpisodeRequest.show(@current_user, podcast) do %>
+        <%= link(pitch_preview(request, 60), to: ~p"/admin/podcasts/#{podcast.slug}/episode_requests/#{request}") %>
+      <% else %>
+        <%= pitch_preview(request, 60) %>
+      <% end %>
+
+      </td>
+      <td class="center aligned">
+        <div class="ui compact menu">
+          <div class="ui simple dropdown item">
+            Actions
+            <i class="dropdown icon"></i>
+
+            <div class="menu">
+            <%= if Policies.Admin.EpisodeRequest.edit(@current_user, podcast) do %>
+              <%= AdminHelpers.dropdown_link("Edit Request",
+                to: ~p"/admin/podcasts/#{podcast.slug}/episode_requests/#{request}/edit?next=#{SharedHelpers.current_path(@conn)}") %>
+            <% end %>
+
+            <%= if Changelog.EpisodeRequest.is_undecided(request) && Policies.Admin.Episode.create(@current_user, podcast) do %>
+              <%= AdminHelpers.dropdown_link("Start Episode",
+                  to: ~p"/admin/podcasts/#{podcast.slug}/episodes/new?request_id=#{request.id}") %>
+            <% end %>
+
+            <%= if Changelog.EpisodeRequest.is_pendable(request) && Policies.Admin.EpisodeRequest.pend(@current_user, podcast) do %>
+              <%= AdminHelpers.dropdown_link("Set to Pending",
+                  to: ~p"/admin/podcasts/#{podcast.slug}/episode_requests/#{request}/pend?next=#{SharedHelpers.current_path(@conn)}",
+                  method: :put) %>
+            <% end %>
+
+            <%= if Changelog.EpisodeRequest.is_undecided(request) && Policies.Admin.EpisodeRequest.fail(@current_user, podcast) do %>
+              <%= AdminHelpers.dropdown_link("Fail Silently",
+                  to: ~p"/admin/podcasts/#{podcast.slug}/episode_requests/#{request}/fail?next=#{SharedHelpers.current_path(@conn)}",
+                  title: "Failed",
+                  method: :put, data: [confirm: "Set to failed?"]) %>
+
+              <%= AdminHelpers.modal_dropdown_link(
+                ChangelogWeb.Admin.EpisodeRequestView,
+                "Fail & Message",
+                "fail",
+                %{request: request, conn: @conn, podcast: podcast},
+                request.id
+              ) %>
+            <% end %>
+
+            <%= if Changelog.EpisodeRequest.is_undecided(request) && Policies.Admin.EpisodeRequest.decline(@current_user, podcast) do %>
+              <%= AdminHelpers.dropdown_link("Decline Silently",
+                  to: ~p"/admin/podcasts/#{podcast.slug}/episode_requests/#{request}/decline?next=#{SharedHelpers.current_path(@conn)}",
+                  method: :put,
+                  data: [confirm: "Decline this request?"]) %>
+
+              <%= AdminHelpers.modal_dropdown_link(
+                ChangelogWeb.Admin.EpisodeRequestView,
+                "Decline & Message",
+                "decline",
+                %{request: request, conn: @conn, podcast: podcast},
+                request.id
+              ) %>
+            <% end %>
+
+            <%= if !Changelog.EpisodeRequest.is_complete(request) && Policies.Admin.EpisodeRequest.delete(@current_user, podcast) do %>
+              <%= AdminHelpers.dropdown_link("Delete",
+                to: ~p"/admin/podcasts/#{podcast.slug}/episode_requests/#{request}?next=#{SharedHelpers.current_path(@conn)}",
+                method: :delete, data: [confirm: "Delete this request?"]) %>
+            <% end %>
+            </div>
+          </div>
+        </div>
+      </td>
+    </tr>
+  <% end %>
+  </tbody>
+</table>

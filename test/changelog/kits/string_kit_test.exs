@@ -10,6 +10,13 @@ defmodule Changelog.StringKitTest do
     refute StringKit.blank?("stuff")
   end
 
+  test "is_integer/1" do
+    assert StringKit.is_integer("123")
+    refute StringKit.is_integer("")
+    refute StringKit.is_integer("not-a-number")
+    refute StringKit.is_integer("95a8fbc221a2240ac7469d661bac650a")
+  end
+
   test "present?/1" do
     refute StringKit.present?(nil)
     refute StringKit.present?("")
@@ -134,6 +141,48 @@ defmodule Changelog.StringKitTest do
       """
 
       assert StringKit.md_linkify(raw) == linkified
+    end
+  end
+
+  describe "md_delinkify/1" do
+    test "it leaves strings with no links in them alone" do
+      raw = "this has zero ! links."
+      assert StringKit.md_delinkify(raw) == raw
+    end
+
+    test "it works with a single link in there" do
+      a = "This has [one](http://test.com) link and that's it"
+      b = "This has one link and that's it"
+
+      assert StringKit.md_delinkify(a) == b
+    end
+
+    test "it works with multiple links in there" do
+      a = "This has [two](http://test.com) links and that's [all](http://www.com)."
+      b = "This has two links and that's all."
+
+      assert StringKit.md_delinkify(a) == b
+    end
+  end
+
+  describe "md_bare_linkify/1" do
+    test "it leaves strings with no links in them alone" do
+      raw = "this has zero ! links."
+      assert StringKit.md_bare_linkify(raw) == raw
+    end
+
+    test "it works with a single link in there" do
+      a = "This has [one](http://test.com) link and that's it"
+      b = "This has http://test.com link and that's it"
+
+      assert StringKit.md_bare_linkify(a) == b
+    end
+
+    test "it works with multiple links in there" do
+      a = "This has [two](http://test.com) links and that's [all](http://www.com)."
+      b = "This has http://test.com links and that's http://www.com."
+
+      assert StringKit.md_bare_linkify(a) == b
     end
   end
 

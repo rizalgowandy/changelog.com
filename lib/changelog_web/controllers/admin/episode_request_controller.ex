@@ -34,7 +34,14 @@ defmodule ChangelogWeb.Admin.EpisodeRequestController do
 
     accepted =
       requests
-      |> EpisodeRequest.with_episode()
+      |> EpisodeRequest.with_unpublished_episode()
+      |> EpisodeRequest.newest_first()
+      |> EpisodeRequest.preload_all()
+      |> Repo.all()
+
+    complete =
+      requests
+      |> EpisodeRequest.with_published_episode()
       |> EpisodeRequest.newest_first()
       |> EpisodeRequest.preload_all()
       |> Repo.all()
@@ -55,6 +62,7 @@ defmodule ChangelogWeb.Admin.EpisodeRequestController do
     |> assign(:fresh, fresh)
     |> assign(:pending, pending)
     |> assign(:accepted, accepted)
+    |> assign(:complete, complete)
     |> assign(:declined, declined)
     |> assign(:failed, failed)
     |> render(:index)
@@ -85,14 +93,14 @@ defmodule ChangelogWeb.Admin.EpisodeRequestController do
         params =
           replace_next_edit_path(
             params,
-            Routes.admin_podcast_episode_request_path(conn, :edit, request.podcast.slug, request)
+            ~p"/admin/podcasts/#{request.podcast.slug}/edit"
           )
 
         conn
         |> put_flash(:result, "success")
         |> redirect_next(
           params,
-          Routes.admin_podcast_episode_request_path(conn, :index, request.podcast.slug)
+          ~p"/admin/podcasts/#{request.podcast.slug}/episode_requests"
         )
 
       {:error, changeset} ->
@@ -127,7 +135,9 @@ defmodule ChangelogWeb.Admin.EpisodeRequestController do
   end
 
   def fail(conn = %{assigns: %{request: request}}, params, podcast) do
-    EpisodeRequest.fail!(request)
+    message = Map.get(params, "message", "")
+    request = EpisodeRequest.fail!(request, message)
+    Task.start_link(fn -> Notifier.notify(request) end)
 
     conn
     |> put_flash(:result, "success")
@@ -158,7 +168,7 @@ defmodule ChangelogWeb.Admin.EpisodeRequestController do
   end
 
   defp redirect_next_or_index(conn, params, podcast) do
-    index_path = Routes.admin_podcast_episode_request_path(conn, :index, podcast.slug)
+    index_path = ~p"/admin/podcasts/#{podcast.slug}/episode_requests"
     redirect_next(conn, params, index_path)
   end
 end

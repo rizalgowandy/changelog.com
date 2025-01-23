@@ -1,9 +1,19 @@
 defmodule ChangelogWeb.Admin.NewsItemController do
   use ChangelogWeb, :controller
 
-  alias Changelog.{HtmlKit, NewsItem, NewsSource, NewsQueue, Search, Topic, UrlKit, Notifier}
+  alias Changelog.{
+    HtmlKit,
+    Fastly,
+    NewsItem,
+    NewsSource,
+    NewsQueue,
+    TypesenseSearch,
+    Topic,
+    UrlKit,
+    Notifier
+  }
 
-  plug :assign_item when action in [:edit, :update, :move, :decline, :move, :unpublish, :delete]
+  plug :assign_item when action in [:accept, :edit, :update, :move, :decline, :move, :unpublish, :delete]
   plug Authorize, [Policies.Admin.NewsItem, :item]
   plug :scrub_params, "news_item" when action in [:create, :update]
   plug :detect_quick_form when action in [:new, :create]
@@ -72,7 +82,7 @@ defmodule ChangelogWeb.Admin.NewsItemController do
 
   def new(conn = %{assigns: %{current_user: me}}, params) do
     url = UrlKit.normalize_url(params["url"])
-    html = UrlKit.get_html(url)
+    html = UrlKit.get_body(url)
 
     changeset =
       me
@@ -103,7 +113,7 @@ defmodule ChangelogWeb.Admin.NewsItemController do
 
         conn
         |> put_flash(:result, "success")
-        |> redirect(to: determine_redirect(conn, item, params))
+        |> redirect(to: determine_redirect(item, params))
 
       {:error, changeset} ->
         conn
@@ -130,16 +140,29 @@ defmodule ChangelogWeb.Admin.NewsItemController do
       {:ok, item} ->
         handle_status_changes(item, params)
         handle_search_update(item)
+        Fastly.purge(item)
 
         conn
         |> put_flash(:result, "success")
-        |> redirect_next(params, determine_redirect(conn, item, params))
+        |> redirect_next(params, determine_redirect(item, params))
 
       {:error, changeset} ->
         conn
         |> put_flash(:result, "failure")
         |> render(:edit, item: item, changeset: changeset, similar: similar_items(item))
     end
+  end
+
+  def accept(conn = %{assigns: %{item: item}}, params) do
+    message = Map.get(params, "message", "")
+    object_id = Map.get(params, "object", nil)
+
+    item = NewsItem.accept!(item, object_id, message)
+    Task.start_link(fn -> Notifier.notify(item) end)
+
+    conn
+    |> put_flash(:result, "success")
+    |> redirect_next(params, ~p"/admin/news")
   end
 
   def decline(conn = %{assigns: %{item: item}}, params) do
@@ -149,25 +172,25 @@ defmodule ChangelogWeb.Admin.NewsItemController do
 
     conn
     |> put_flash(:result, "success")
-    |> redirect(to: Routes.admin_news_item_path(conn, :index))
+    |> redirect_next(params, ~p"/admin/news")
   end
 
-  def delete(conn = %{assigns: %{item: item}}, _params) do
+  def delete(conn = %{assigns: %{item: item}}, params) do
     Repo.delete!(item)
-    Task.start_link(fn -> Search.delete_item(item) end)
+    Task.start_link(fn -> TypesenseSearch.delete_item(item) end)
 
     conn
     |> put_flash(:result, "success")
-    |> redirect(to: Routes.admin_news_item_path(conn, :index))
+    |> redirect_next(params, ~p"/admin/news")
   end
 
   def unpublish(conn = %{assigns: %{item: item}}, _params) do
     NewsItem.unpublish!(item)
-    Task.start_link(fn -> Search.delete_item(item) end)
+    Task.start_link(fn -> TypesenseSearch.delete_item(item) end)
 
     conn
     |> put_flash(:result, "success")
-    |> redirect(to: Routes.admin_news_item_path(conn, :index))
+    |> redirect(to: ~p"/admin/news")
   end
 
   def move(conn = %{assigns: %{item: item}}, %{"position" => position}) do
@@ -190,10 +213,10 @@ defmodule ChangelogWeb.Admin.NewsItemController do
 
   defp detect_object_id(item_params), do: item_params
 
-  defp determine_redirect(conn, item, params) do
+  defp determine_redirect(item, params) do
     case Map.get(params, "queue", "draft") do
-      "draft" -> Routes.admin_news_item_path(conn, :edit, item)
-      _else -> Routes.admin_news_item_path(conn, :index)
+      "draft" -> ~p"/admin/news/items/#{item}/edit"
+      _else -> ~p"/admin/news"
     end
   end
 
@@ -206,7 +229,7 @@ defmodule ChangelogWeb.Admin.NewsItemController do
     end
   end
 
-  defp handle_search_update(item), do: Task.start_link(fn -> Search.update_item(item) end)
+  defp handle_search_update(item), do: Task.start_link(fn -> TypesenseSearch.update_item(item) end)
 
   defp similar_items(nil), do: []
 

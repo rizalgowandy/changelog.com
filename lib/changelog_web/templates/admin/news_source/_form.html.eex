@@ -19,7 +19,7 @@
 
     <div class="field <%= AdminHelpers.error_class(f, :twitter) %>">
       <%= label(f, :twitter_handle, "Twitter Handle") %>
-      <%= text_input(f, :twitter_handle, placeholder: "wired") %>
+      <%= text_input(f, :twitter_handle, placeholder: "wired", mask: "slug") %>
     </div>
   </div>
 
@@ -62,6 +62,13 @@
 
     <div class="two wide field">
       <img src="<%= ChangelogWeb.NewsSourceView.icon_url(f.data, :small) %>" height=66>
+    </div>
+  </div>
+
+  <div class="field <%= AdminHelpers.error_class(f, :publication) %>">
+    <div class="ui toggle checkbox">
+      <%= checkbox(f, :publication, class: "hidden") %>
+      <label>Publication <%= AdminHelpers.help_icon("Publication icons show in the feed. Platforms don't") %></label>
     </div>
   </div>
 

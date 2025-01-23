@@ -1,9 +1,26 @@
 defmodule ChangelogWeb.Helpers.AdminHelpers do
   use Phoenix.HTML
+  import Phoenix.Component, only: [sigil_H: 2]
 
-  alias Changelog.Repo
+  alias Changelog.{Repo, StringKit}
   alias ChangelogWeb.TimeView
-  alias ChangelogWeb.Helpers.SharedHelpers
+
+  def diff_label(up, down) do
+    diff = up - down
+
+    {sdiff, color} =
+      cond do
+        diff > 0 -> {"+#{diff}", "green"}
+        diff < 0 -> {"#{diff}", "red"}
+        true -> {"#{diff}", "gray"}
+      end
+
+    assigns = %{up: up, down: down, sdiff: sdiff, color: color}
+
+    ~H"""
+    <div class={"ui small basic #{@color} label"} data-popup="true" title={"up #{@up} (down #{@down})"}><%= @sdiff %></div>
+    """
+  end
 
   def error_class(form, field), do: if(form.errors[field], do: "error", else: "")
 
@@ -52,21 +69,44 @@ defmodule ChangelogWeb.Helpers.AdminHelpers do
     end
   end
 
-  def help_icon(help_text, classes \\ "") do
-    ~e"""
-    <i class="help circle icon fluid <%= classes %>" data-popup="true" data-variation="wide" data-content="<%= help_text %>"></i>
+  def help_icon(text, classes \\ "") do
+    assigns = %{text: text, classes: classes}
+
+    ~H"""
+    <i class={"help circle icon fluid #{@classes}"} data-popup="true" data-variation="wide" data-content={@text}></i>
     """
   end
 
-  def info_icon(info_text) do
-    ~e"""
-    <i class="info circle icon fluid" data-popup="true" data-variation="wide" data-content="<%= info_text %>"></i>
+  def info_icon(text) do
+    assigns = %{text: text}
+
+    ~H"""
+    <i class="info circle icon fluid" data-popup="true" data-variation="wide" data-content={@text}></i>
     """
+  end
+
+  def dropdown_link(text, options) do
+    options = Keyword.put(options, :class, "item")
+    link(text, options)
   end
 
   def icon_link(icon_name, options) do
     options = Keyword.put(options, :class, "ui icon button")
     link(content_tag(:i, "", class: "#{icon_name} icon"), options)
+  end
+
+  def modal_dropdown_link(view_module, text, modal_name, assigns, id) do
+    modal_id = "#{modal_name}-modal-#{id}"
+    form_id = "#{modal_name}-form-#{id}"
+    assigns = Map.merge(assigns, %{modal_id: modal_id, form_id: form_id})
+    modal = Phoenix.View.render(view_module, "_#{modal_name}_modal.html", assigns)
+
+    assigns = %{id: modal_id, text: text, modal: modal}
+
+    ~H"""
+    <a href="javascript:void(0);" class="item js-modal" data-modal={"##{@id}"}><%= @text %></a>
+    <%= @modal %>
+    """
   end
 
   def modal_icon_button(view_module, icon_name, title, modal_name, assigns, id) do
@@ -75,19 +115,23 @@ defmodule ChangelogWeb.Helpers.AdminHelpers do
     assigns = Map.merge(assigns, %{modal_id: modal_id, form_id: form_id})
     modal = Phoenix.View.render(view_module, "_#{modal_name}_modal.html", assigns)
 
-    ~e"""
+    assigns = %{id: modal_id, title: title, icon_name: icon_name, modal: modal}
+
+    ~H"""
     <button
       type="button"
-      data-modal="#<%= modal_id %>"
+      data-modal={"##{@id}"}
       class="ui icon button js-modal"
-      title="<%= title %>">
-        <i class="<%= icon_name %> icon"></i>
+      title={@title}>
+        <i class={"#{@icon_name} icon"}></i>
     </button>
-    <%= modal %>
+    <%= @modal %>
     """
   end
 
-  def is_persisted(struct), do: is_integer(struct.id)
+  def is_persisted(%{id: id}) when is_integer(id), do: true
+  def is_persisted(%{id: id}) when is_binary(id), do: StringKit.present?(id)
+  def is_persisted(_else), do: false
 
   def is_loaded(nil), do: false
   def is_loaded(%Ecto.Association.NotLoaded{}), do: false
@@ -120,27 +164,15 @@ defmodule ChangelogWeb.Helpers.AdminHelpers do
 
   def next_param(conn, default \\ nil), do: Map.get(conn.params, "next", default)
 
-  def download_count(ep_or_pod) do
-    ep_or_pod.download_count
-    |> round()
-    |> SharedHelpers.comma_separated()
-  end
-
-  def reach_count(ep_or_pod) do
-    if ep_or_pod.reach_count > ep_or_pod.download_count do
-      SharedHelpers.comma_separated(ep_or_pod.reach_count)
-    else
-      download_count(ep_or_pod)
-    end
-  end
-
   def semantic_calendar_field(form, field) do
-    ~e"""
+    assigns = %{form: form, field: field}
+
+    ~H"""
     <div class="ui calendar">
       <div class="ui input left icon">
         <i class="calendar icon"></i>
-        <%= text_input(form, field, name: "", id: "") %>
-        <%= hidden_input(form, field) %>
+        <%= text_input(@form, @field, name: "", id: "") %>
+        <%= hidden_input(@form, @field) %>
       </div>
     </div>
     """
@@ -159,7 +191,7 @@ defmodule ChangelogWeb.Helpers.AdminHelpers do
   # See time.js for supported styles
   def ts(ts, style), do: TimeView.ts(ts, style)
 
-  def up_or_down_class(a, b) when is_integer(a) and is_integer(b) do
+  def up_or_down_class(a, b) when is_number(a) and is_number(b) do
     if a > b do
       "green"
     else

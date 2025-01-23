@@ -1,0 +1,11 @@
+<%= render(SharedView, "_signup.html", assigns) %>
+
+<div class="main-podcasts">
+  <section class="show_list" id="podcasts">
+    <div class="show_list-shows">
+    <%= for podcast <- PodcastView.active_podcasts_for_index(@podcasts) do %>
+      <%= render(PodcastView, "_summary.html", podcast: podcast) %>
+    <% end %>
+    </div>
+  </section>
+</div>

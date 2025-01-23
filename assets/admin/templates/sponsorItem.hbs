@@ -39,5 +39,23 @@
     >{{extras.description}}</textarea>
   </div>
 
-  <div class="ui divider"></div>
+  <div class="fields">
+    <div class="field">
+      <label>Starts At</label>
+      <input
+        name="{{parentType}}[{{attrName}}][{{index}}][starts_at]"
+        class="js-time-in-seconds"
+      >
+    </div>
+
+    <div class="field">
+      <label>Ends At</label>
+      <input
+        name="{{parentType}}[{{attrName}}][{{index}}][ends_at]"
+        class="js-time-in-seconds"
+      >
+    </div>
+  </div>
 </div>
+
+<div class="ui divider"></div>

@@ -56,7 +56,7 @@ defmodule ChangelogWeb.NewsItemCommentControllerTest do
       assert_enqueued([worker: CommentNotifier, args: %{"comment_id" => id}], 100)
 
       assert %{success: 1, failure: 0} =
-               Oban.drain_queue(queue: :comment_notifier, with_scheduled: true)
+               Oban.drain_queue(queue: :email, with_scheduled: true)
 
       assert called(Notifier.notify(:_))
     end
@@ -79,7 +79,7 @@ defmodule ChangelogWeb.NewsItemCommentControllerTest do
       assert_enqueued([worker: CommentNotifier, args: %{"comment_id" => id}], 100)
 
       assert %{success: 1, failure: 0} =
-               Oban.drain_queue(queue: :comment_notifier, with_scheduled: true)
+               Oban.drain_queue(queue: :email, with_scheduled: true)
 
       assert called(Notifier.notify(:_))
     end
@@ -104,7 +104,7 @@ defmodule ChangelogWeb.NewsItemCommentControllerTest do
       assert_enqueued([worker: CommentNotifier, args: %{"comment_id" => id}], 100)
 
       assert %{success: 1, failure: 0} =
-               Oban.drain_queue(queue: :comment_notifier, with_scheduled: true)
+               Oban.drain_queue(queue: :email, with_scheduled: true)
 
       assert comment.author_id != other.id
       assert called(Notifier.notify(:_))
@@ -125,7 +125,7 @@ defmodule ChangelogWeb.NewsItemCommentControllerTest do
 
     assert patch(conn, Routes.news_item_comment_path(conn, :update, Changelog.Hashid.encode(id)),
              news_item_comment: %{content: "how dare thee!!!"}
-           ).status == 200
+           ).status == 302
 
     assert NewsItemComment.get_by_id(id).content == "how dare thee!!!"
   end
